@@ -51,9 +51,10 @@ def perform_retrieve(num_retrieve):
 					accuracy = beatmap["accuracy"]
 					ar = beatmap["ar"]
 					
-					# Write to training data.
+					# Write to training data. Each beatmap is in its own csv file indexed by its id.
 					filename = os.path.join(TRAINING_METADATA_PATH, f"{beatmap_id}.csv")
 					with open(filename, encoding="utf-8", mode="w") as csv_file:
+						# Save entry as a row in the format of [difficulty_rating],[bpm],[total_length],[cs],[drain],[accuracy],[ar].
 						print(f"{difficulty_rating},{bpm},{total_length},{cs},{drain},{accuracy},{ar}", file=csv_file)
 					
 					num_retrieve -= 1
