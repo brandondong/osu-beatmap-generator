@@ -29,8 +29,6 @@ for idx, f in enumerate(files):
 	with open(filename, encoding="utf-8", mode="r") as csv_file:
 		contents = csv_file.read()
 	data = contents.split(",")
-	# Strip the ending new line added during the file write.
-	data[-1].rstrip()
 	for prop_idx, prop in enumerate(data):
 		points[prop_idx, idx] = float(prop)
 
