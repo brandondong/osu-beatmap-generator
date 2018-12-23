@@ -1,3 +1,5 @@
 training_data/
 
+models/weights/
+
 __pycache__/

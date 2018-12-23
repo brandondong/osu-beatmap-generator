@@ -1,8 +1,18 @@
+from enum import Enum
 import os
+import pickle
 
 import numpy as np
 
 TRAINING_METADATA_PATH = "../training_data/metadata/"
+
+MODEL_SAVE_PATH = "weights/"
+
+class MetadataPredictor(Enum):
+	CS = "cs"
+	DRAIN = "drain"
+	ACCURACY = "accuracy"
+	AR = "ar"
 
 def load_metadata_dataset():
 	"""Loads the metadata training dataset into a (n, 7) numpy array."""
@@ -22,3 +32,16 @@ def load_metadata_dataset():
 			dataset[idx, prop_idx] = float(prop)
 	
 	return dataset
+	
+def save_model(model, predictor):
+	# Make sure the save directory exists.
+	os.makedirs(MODEL_SAVE_PATH, exist_ok=True)
+	
+	filename = os.path.join(MODEL_SAVE_PATH, predictor.value)
+	with open(filename, mode="wb") as file:
+		pickle.dump(model, file)
+	
+def load_model(predictor):
+	filename = os.path.join(MODEL_SAVE_PATH, predictor.value)
+	with open(filename, mode="rb") as file:
+		return pickle.load(file)
