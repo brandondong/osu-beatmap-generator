@@ -13,6 +13,11 @@ DRAIN_LABEL = "HP Drain"
 ACCURACY_LABEL = "Accuracy"
 AR_LABEL = "Approach Rate"
 
+def print_property_values(labels, values):
+	for idx, value in enumerate(values):
+		print(f"{labels[idx]}: {value}")
+	print()
+
 files = os.listdir(TRAINING_METADATA_PATH)
 num_files = len(files)
 
@@ -34,16 +39,16 @@ for idx, f in enumerate(files):
 
 mins = points.min(axis=-1)
 maxes = points.max(axis=-1)
+means = np.mean(points, axis=-1)
 
 print("Minimum values:")
-for idx, value in enumerate(mins):
-	print(f"{labels[idx]}: {value}")
-print()
+print_property_values(labels, mins)
 
 print("Maximum values:")
-for idx, value in enumerate(maxes):
-	print(f"{labels[idx]}: {value}")
-print()
+print_property_values(labels, maxes)
+
+print("Mean values:")
+print_property_values(labels, means)
 
 # Plot graphs for each input output feature pair.
 for i in range(3):

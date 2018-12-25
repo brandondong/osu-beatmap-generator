@@ -8,6 +8,9 @@ DRAIN_PREDICTOR = models_util.load_model(models_util.MetadataPredictor.DRAIN)
 ACCURACY_PREDICTOR = models_util.load_model(models_util.MetadataPredictor.ACCURACY)
 AR_PREDICTOR = models_util.load_model(models_util.MetadataPredictor.AR)
 
+MIN_VALUE = 0
+MAX_VALUE = 10
+
 def predict_metadata(difficulty, bpm):
 	# Single input to predict.
 	X = np.zeros((1, 2))
@@ -17,4 +20,7 @@ def predict_metadata(difficulty, bpm):
 	drain = DRAIN_PREDICTOR.predict(X)[0]
 	accuracy = ACCURACY_PREDICTOR.predict(X)[0]
 	ar = AR_PREDICTOR.predict(X)[0]
-	return cs, drain, accuracy, ar
+	return _clamp(cs), _clamp(drain), _clamp(accuracy), _clamp(ar)
+	
+def _clamp(value):
+	return min(MAX_VALUE, max(MIN_VALUE, value))
