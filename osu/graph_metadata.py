@@ -3,7 +3,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-TRAINING_METADATA_PATH = "../training_data/metadata/"
+from models import models_util
 
 DIFFICULTY_LABEL = "Star Difficulty"
 BPM_LABEL = "BPM"
@@ -13,13 +13,12 @@ DRAIN_LABEL = "HP Drain"
 ACCURACY_LABEL = "Accuracy"
 AR_LABEL = "Approach Rate"
 
+SAVE_FOLDER = "visualization/"
+
 def print_property_values(labels, values):
 	for idx, value in enumerate(values):
 		print(f"{labels[idx]}: {value}")
 	print()
-
-files = os.listdir(TRAINING_METADATA_PATH)
-num_files = len(files)
 
 # Data rows are in the format of [difficulty_rating],[bpm],[total_length],[cs],[drain],[accuracy],[ar].
 labels = [DIFFICULTY_LABEL, BPM_LABEL, LENGTH_LABEL, CS_LABEL, DRAIN_LABEL, ACCURACY_LABEL, AR_LABEL]
@@ -27,15 +26,7 @@ filename_labels = []
 for label in labels:
 	filename_labels.append(label.lower().replace(" ", "_"))
 # Keep track of each property in separate rows.
-points = np.zeros((7, num_files))
-
-for idx, f in enumerate(files):
-	filename = os.path.join(TRAINING_METADATA_PATH, f)
-	with open(filename, encoding="utf-8", mode="r") as csv_file:
-		contents = csv_file.read()
-	data = contents.split(",")
-	for prop_idx, prop in enumerate(data):
-		points[prop_idx, idx] = float(prop)
+points = np.transpose(models_util.load_metadata_dataset())
 
 mins = points.min(axis=-1)
 maxes = points.max(axis=-1)
@@ -63,6 +54,6 @@ for i in range(3):
 		
 		x_file_label = filename_labels[i]
 		y_file_label = filename_labels[j]
-		image_name = f"{y_file_label}_vs_{x_file_label}.png"
+		image_name = os.path.join(SAVE_FOLDER, f"{y_file_label}_vs_{x_file_label}.png")
 		print(f"Saving graph to {image_name}.")
 		plt.savefig(image_name)

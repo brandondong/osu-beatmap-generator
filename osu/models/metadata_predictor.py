@@ -1,12 +1,12 @@
 import numpy as np
 
-import models_util
+from .models_util import load_model, MetadataPredictor
 
 # Load all the models from file.
-CS_PREDICTOR = models_util.load_model(models_util.MetadataPredictor.CS)
-DRAIN_PREDICTOR = models_util.load_model(models_util.MetadataPredictor.DRAIN)
-ACCURACY_PREDICTOR = models_util.load_model(models_util.MetadataPredictor.ACCURACY)
-AR_PREDICTOR = models_util.load_model(models_util.MetadataPredictor.AR)
+CS_PREDICTOR = load_model(MetadataPredictor.CS)
+DRAIN_PREDICTOR = load_model(MetadataPredictor.DRAIN)
+ACCURACY_PREDICTOR = load_model(MetadataPredictor.ACCURACY)
+AR_PREDICTOR = load_model(MetadataPredictor.AR)
 
 MIN_VALUE = 0
 MAX_VALUE = 10

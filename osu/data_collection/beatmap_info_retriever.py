@@ -1,16 +1,13 @@
 import json
 import os
-import sys
 import urllib.request
-
-DEFAULT_NUM_RETRIEVE = 1000
 
 BASE_SEARCH_URL = "https://osu.ppy.sh/beatmapsets/search"
 BEATMAPSET_URL = "https://osu.ppy.sh/beatmapsets/"
 
-TRAINING_METADATA_PATH = "../training_data/metadata/"
+TRAINING_METADATA_PATH = "training_data/metadata/"
 
-def perform_retrieve(num_retrieve):
+def retrieve_metadata(num_retrieve):
 	# Ensure the training data folders have been created.
 	os.makedirs(TRAINING_METADATA_PATH, exist_ok=True)
 
@@ -66,9 +63,3 @@ def perform_retrieve(num_retrieve):
 						print(f"Earliest ranked beatmap set added to the training data was ranked on {ranked_date}.")
 						print(f"{BEATMAPSET_URL}{set_id}")
 						return
-
-num_retrieve = DEFAULT_NUM_RETRIEVE
-if len(sys.argv) == 2:
-	num_retrieve = int(sys.argv[1])
-
-perform_retrieve(num_retrieve)

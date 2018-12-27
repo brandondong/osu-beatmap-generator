@@ -7,9 +7,7 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-import models_util
-
-TRAINING_METADATA_PATH = "../training_data/metadata/"
+from models import models_util
 
 NUM_CV_FOLDS = 5
 

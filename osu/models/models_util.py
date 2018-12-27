@@ -4,9 +4,9 @@ import pickle
 
 import numpy as np
 
-TRAINING_METADATA_PATH = "../training_data/metadata/"
+TRAINING_METADATA_PATH = "training_data/metadata/"
 
-MODEL_SAVE_PATH = "weights/"
+MODEL_SAVE_PATH = "models/weights/"
 
 class MetadataPredictor(Enum):
 	CS = "cs"
