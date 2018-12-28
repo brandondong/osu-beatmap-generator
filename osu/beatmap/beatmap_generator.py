@@ -31,8 +31,9 @@ def create_beatmapset(audio_file, target_diffs, dest_dir, title, artist):
 	# Read the generated beat timing file.
 	beats = _read_and_delete_beats_file(beats_filename)
 	
-	timing_points = get_timing_info(beats)
+	timing_points, map_bpm = get_timing_info(beats)
 	print(f"Number of timing points: {len(timing_points)}.")
+	print(f"Calculated beatmap bpm: {map_bpm}.")
 	
 	# Temporary directory to zip for osz file.
 	temp_dir = current_time
@@ -41,7 +42,7 @@ def create_beatmapset(audio_file, target_diffs, dest_dir, title, artist):
 	
 	# Create beatmaps for each target difficulty.
 	for diff in target_diffs:
-		_create_beatmap(diff, temp_dir, timing_points, title, artist)
+		_create_beatmap(diff, temp_dir, timing_points, map_bpm, title, artist)
 	
 	audio_file_basename = os.path.basename(audio_file)[:-4]
 	osz_base_filename = os.path.join(dest_dir, audio_file_basename)
@@ -51,8 +52,9 @@ def create_beatmapset(audio_file, target_diffs, dest_dir, title, artist):
 	os.remove(temp_wav_name)
 	shutil.rmtree(temp_dir)
 	
-def _create_beatmap(diff, dir, timing_points, title, artist):
+def _create_beatmap(diff, dir, timing_points, map_bpm, title, artist):
 	filename = os.path.join(dir, f"{artist} - {title} ({CREATOR}) [{diff}].osu")
+	cs, drain, accuracy, ar = metadata_predictor.predict_metadata(diff, map_bpm)
 	with open(filename, encoding="utf-8", mode="w") as file:
 		s = f"""osu file format v14
 
@@ -86,10 +88,10 @@ BeatmapID:0
 BeatmapSetID:-1
 
 [Difficulty]
-HPDrainRate:5
-CircleSize:4
-OverallDifficulty:9.3
-ApproachRate:9.2
+HPDrainRate:{drain}
+CircleSize:{cs}
+OverallDifficulty:{accuracy}
+ApproachRate:{ar}
 SliderMultiplier:1.7
 SliderTickRate:1
 

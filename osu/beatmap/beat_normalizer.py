@@ -1,10 +1,13 @@
 import numpy as np
 
 WHOLE_NUMBER_BPM_THRESHOLD = 0.05
-
 EXPECTED_INTERVAL_DIFF_THRESHOLD = 10
 
+# Timing offset to handle a beat tracker's consistent deviation.
+BEAT_TRACKING_TIMING_OFFSET = .05
+
 def get_timing_info(beats):
+	beats -= BEAT_TRACKING_TIMING_OFFSET
 	# Analyze each beat section separated by breaks.
 	timing_points = []
 	
@@ -27,5 +30,22 @@ def get_timing_info(beats):
 		avg_diff_percent = avg_diff / expected_interval * 100
 		if avg_diff_percent < EXPECTED_INTERVAL_DIFF_THRESHOLD:
 			timing_points.append((int(round(y0 * 1000)), expected_interval * 1000))
-		
-	return timing_points
+	
+	return timing_points, _map_bpm(timing_points, beats)
+	
+def _map_bpm(timing_points, beats):
+	# Map bpm appears to be the longest duration timing point where the last point is to the last object.
+	max_length = 0
+	max_index = -1
+	for i, tp in enumerate(timing_points):
+		if i == len(timing_points) - 1:
+			# Last point.
+			length = beats[-1] * 1000 - tp[0]
+		else:
+			length = timing_points[i + 1][0] - tp[0]
+		if length >= max_length:
+			max_length = length
+			max_index = i
+	
+	interval = timing_points[max_index][1]
+	return 1 / interval * 60000
