@@ -4,7 +4,7 @@ WHOLE_NUMBER_BPM_THRESHOLD = 0.05
 EXPECTED_INTERVAL_DIFF_THRESHOLD = 10
 
 # Timing offset to handle a beat tracker's consistent deviation.
-BEAT_TRACKING_TIMING_OFFSET = .05
+BEAT_TRACKING_TIMING_OFFSET = 0.034
 
 def get_timing_info(beats):
 	beats -= BEAT_TRACKING_TIMING_OFFSET
@@ -29,7 +29,8 @@ def get_timing_info(beats):
 		avg_diff = np.mean(np.abs(expected_beats - beats))
 		avg_diff_percent = avg_diff / expected_interval * 100
 		if avg_diff_percent < EXPECTED_INTERVAL_DIFF_THRESHOLD:
-			timing_points.append((int(round(y0 * 1000)), expected_interval * 1000))
+			offset = int(round(y0 * 1000))
+			timing_points.append((offset, expected_interval * 1000))
 	
 	return timing_points, _map_bpm(timing_points, beats)
 	

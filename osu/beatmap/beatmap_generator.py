@@ -26,10 +26,10 @@ def create_beatmapset(audio_file, target_diffs, dest_dir, title, artist):
 	# Track beats.
 	print("Tracking beats...")
 	beats_filename = f"{current_time}.csv"
-	call(["java", "-cp", BEATROOT_JAR_PATH, "at.ofai.music.beatroot.BeatRoot", "-o", beats_filename, temp_wav_name])
+	call(["java", "-cp", BEATROOT_JAR_PATH, "at.ofai.music.beatroot.BeatRoot", "-x", beats_filename, temp_wav_name])
 	
 	# Read the generated beat timing file.
-	beats = _read_and_delete_beats_file(beats_filename)
+	beats, onsets = _read_and_delete_beats_file(beats_filename)
 	
 	timing_points, map_bpm = get_timing_info(beats)
 	print(f"Number of timing points: {len(timing_points)}.")
@@ -47,7 +47,7 @@ def create_beatmapset(audio_file, target_diffs, dest_dir, title, artist):
 	audio_file_basename = os.path.basename(audio_file)[:-4]
 	osz_base_filename = os.path.join(dest_dir, audio_file_basename)
 	shutil.make_archive(osz_base_filename, "zip", temp_dir)
-	os.rename(f"{osz_base_filename}.zip", f"{osz_base_filename}.osz")
+	shutil.move(f"{osz_base_filename}.zip", f"{osz_base_filename}.osz")
 	
 	os.remove(temp_wav_name)
 	shutil.rmtree(temp_dir)
@@ -110,14 +110,21 @@ SliderTickRate:1
 		for tp in timing_points:
 			file.write(f"{tp[0]},{tp[1]},4,2,22,40,1,0\n")
 	
-def _read_and_delete_beats_file(beats_filename):
-	with open(beats_filename, mode="r") as csv_file:
-		contents = csv_file.read()
-	data = contents.split(",")
-	beats = np.zeros(len(data))
+def _read_and_delete_beats_file(filename):
+	with open(filename, mode="r") as csv_file:
+		beat_contents = csv_file.readline()
+		onset_contents = csv_file.readline()
+	
+	beats = _parse_to_np_array(beat_contents)
+	onsets = _parse_to_np_array(onset_contents)
+		
+	os.remove(filename)
+	return beats, onsets
+	
+def _parse_to_np_array(s):
+	data = s.split(",")
+	a = np.zeros(len(data))
 	
 	for idx, value in enumerate(data):
-		beats[idx] = float(value)
-		
-	os.remove(beats_filename)
-	return beats
+		a[idx] = float(value)
+	return a
