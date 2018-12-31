@@ -6,10 +6,15 @@ EXPECTED_INTERVAL_DIFF_THRESHOLD = 10
 # Timing offset to handle a beat tracker's consistent deviation.
 BEAT_TRACKING_TIMING_OFFSET = 0.034
 
-def get_timing_info(beats):
-	beats -= BEAT_TRACKING_TIMING_OFFSET
-	# Analyze each beat section separated by breaks.
+EDGE_FILTER_WINDOW_SIZE = 4
+
+def get_timing_info(beats, onsets):
+	beats = beats - BEAT_TRACKING_TIMING_OFFSET
+	onsets = onsets - BEAT_TRACKING_TIMING_OFFSET
 	timing_points = []
+	
+	# Ignore starting and ending beats found to be likely happening during musical breaks.
+	beats = _filter_edge_beats(beats, onsets)
 	
 	# Check if it matches a whole number bpm by first considering the time between the first and last beat.
 	# Optimistically, the length between these beats would be high and would cancel out any noise.
@@ -33,6 +38,64 @@ def get_timing_info(beats):
 			timing_points.append((offset, expected_interval * 1000))
 	
 	return timing_points, _map_bpm(timing_points, beats)
+	
+def _filter_edge_beats(beats, onsets):
+	# Use a sliding window to filter out beats with few neighbouring onsets.
+	start_index = _filtered_beats_start(beats, onsets)
+	end_index = _filtered_beats_end(beats, onsets)
+	if start_index >= end_index:
+		# Removed too many beats. Likely too few onsets to work with.
+		return beats
+	return beats[start_index:end_index + 1]
+	
+def _filtered_beats_start(beats, onsets):
+	num_beats = beats.shape[0]
+	for start_index in range(num_beats - EDGE_FILTER_WINDOW_SIZE):
+		start = beats[start_index]
+		end_index = start_index + EDGE_FILTER_WINDOW_SIZE
+		end = beats[end_index]
+		num_between = _num_between(onsets, start, end)
+		if num_between >= EDGE_FILTER_WINDOW_SIZE:
+			return _beat_start_index_with_onset(beats, onsets, start_index)
+	return 0
+
+def _filtered_beats_end(beats, onsets):
+	num_beats = beats.shape[0]
+	for end_index in range(num_beats - 1, EDGE_FILTER_WINDOW_SIZE - 1, -1):
+		start_index = end_index - EDGE_FILTER_WINDOW_SIZE
+		start = beats[start_index]
+		end = beats[end_index]
+		num_between = _num_between(onsets, start, end)
+		if num_between >= EDGE_FILTER_WINDOW_SIZE:
+			return _beat_end_index_with_onset(beats, onsets, end_index)
+	return beats.shape[0] - 1
+	
+def _num_between(a, start, end, inclusive_left=True, inclusive_right=True):
+	left_side = "left" if inclusive_left else "right"
+	right_side = "right" if inclusive_right else "left"
+	start_index = np.searchsorted(a, start, side=left_side)
+	end_index = np.searchsorted(a, end, side=right_side)
+	return end_index - start_index
+	
+def _beat_start_index_with_onset(beats, onsets, left_index):
+	num_beats = beats.shape[0]
+	for start_index in range(left_index, num_beats - 1):
+		start = beats[start_index]
+		end = beats[start_index + 1]
+		num_between = _num_between(onsets, start, end, True, False)
+		if num_between >= 1:
+			return start_index
+	return left_index
+	
+def _beat_end_index_with_onset(beats, onsets, right_index):
+	num_beats = beats.shape[0]
+	for end_index in range(right_index, 0, -1):
+		start = beats[end_index - 1]
+		end = beats[end_index]
+		num_between = _num_between(onsets, start, end, False, True)
+		if num_between >= 1:
+			return end_index
+	return right_index
 	
 def _map_bpm(timing_points, beats):
 	# Map bpm appears to be the longest duration timing point where the last point is to the last object.

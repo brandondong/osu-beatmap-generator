@@ -31,7 +31,7 @@ def create_beatmapset(audio_file, target_diffs, dest_dir, title, artist):
 	# Read the generated beat timing file.
 	beats, onsets = _read_and_delete_beats_file(beats_filename)
 	
-	timing_points, map_bpm = get_timing_info(beats)
+	timing_points, map_bpm = get_timing_info(beats, onsets)
 	print(f"Number of timing points: {len(timing_points)}.")
 	print(f"Calculated beatmap bpm: {map_bpm}.")
 	
