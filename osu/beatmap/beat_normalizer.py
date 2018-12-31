@@ -9,9 +9,14 @@ BEAT_TRACKING_TIMING_OFFSET = 0.034
 EDGE_FILTER_WINDOW_SIZE = 4
 
 def get_timing_info(beats, onsets):
+	"""Extracts beatmap timing info from beat tracking data.
+	
+	Returns a list of timing points, the beatmap bpm, and the offset of the last beat."""
+
 	beats = beats - BEAT_TRACKING_TIMING_OFFSET
 	onsets = onsets - BEAT_TRACKING_TIMING_OFFSET
 	timing_points = []
+	last_beat = beats[-1] * 1000
 	
 	# Ignore starting and ending beats found to be likely happening during musical breaks.
 	beats = _filter_edge_beats(beats, onsets)
@@ -36,8 +41,9 @@ def get_timing_info(beats, onsets):
 		if avg_diff_percent < EXPECTED_INTERVAL_DIFF_THRESHOLD:
 			offset = int(round(y0 * 1000))
 			timing_points.append((offset, expected_interval * 1000))
+			last_beat = expected_beats[-1] * 1000
 	
-	return timing_points, _map_bpm(timing_points, beats)
+	return timing_points, _map_bpm(timing_points, beats), last_beat
 	
 def _filter_edge_beats(beats, onsets):
 	# Use a sliding window to filter out beats with few neighbouring onsets.
@@ -54,7 +60,7 @@ def _filtered_beats_start(beats, onsets):
 		start = beats[start_index]
 		end_index = start_index + EDGE_FILTER_WINDOW_SIZE
 		end = beats[end_index]
-		num_between = _num_between(onsets, start, end)
+		num_between = _num_between(onsets, start, end, True, False)
 		if num_between >= EDGE_FILTER_WINDOW_SIZE:
 			return _beat_start_index_with_onset(beats, onsets, start_index)
 	return 0
@@ -65,12 +71,12 @@ def _filtered_beats_end(beats, onsets):
 		start_index = end_index - EDGE_FILTER_WINDOW_SIZE
 		start = beats[start_index]
 		end = beats[end_index]
-		num_between = _num_between(onsets, start, end)
+		num_between = _num_between(onsets, start, end, False, True)
 		if num_between >= EDGE_FILTER_WINDOW_SIZE:
 			return _beat_end_index_with_onset(beats, onsets, end_index)
 	return beats.shape[0] - 1
 	
-def _num_between(a, start, end, inclusive_left=True, inclusive_right=True):
+def _num_between(a, start, end, inclusive_left, inclusive_right):
 	left_side = "left" if inclusive_left else "right"
 	right_side = "right" if inclusive_right else "left"
 	start_index = np.searchsorted(a, start, side=left_side)
