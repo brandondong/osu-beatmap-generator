@@ -32,7 +32,11 @@ def create_beatmapset(audio_file, target_diffs, dest_dir, title, artist):
 	beats, onsets = _read_and_delete_beats_file(beats_filename)
 	
 	timing_points, map_bpm, last_beat = get_timing_info(beats, onsets)
-	print(f"Number of timing points: {len(timing_points)}.")
+	num_timing_points = len(timing_points)
+	if num_timing_points == 1:
+		print(f"Single timing point created. Offset: {timing_points[0][0]}.")
+	else:
+		print("Possible poor results due to beat tracking encountering difficulties. For best performance, use single bpm songs with distinctive percussive onsets and a lack of heavy syncopation." )
 	print(f"Calculated beatmap bpm: {map_bpm}.")
 	
 	# Temporary directory to zip for osz file.
@@ -53,7 +57,9 @@ def create_beatmapset(audio_file, target_diffs, dest_dir, title, artist):
 	shutil.rmtree(temp_dir)
 	
 def _create_beatmap(diff, dir, timing_points, map_bpm, title, artist):
-	filename = os.path.join(dir, f"{artist} - {title} ({CREATOR}) [{diff}].osu")
+	title_ascii = _remove_non_ascii(title)
+	artist_ascii = _remove_non_ascii(artist)
+	filename = os.path.join(dir, f"{artist_ascii} - {title_ascii} ({CREATOR}) [{diff}].osu")
 	cs, drain, accuracy, ar = metadata_predictor.predict_metadata(diff, map_bpm)
 	with open(filename, encoding="utf-8", mode="w") as file:
 		s = f"""osu file format v14
@@ -76,9 +82,9 @@ GridSize: 4
 TimelineZoom: 2
 
 [Metadata]
-Title:{title}
+Title:{title_ascii}
 TitleUnicode:{title}
-Artist:{artist}
+Artist:{artist_ascii}
 ArtistUnicode:{artist}
 Creator:{CREATOR}
 Version:{diff}
@@ -128,3 +134,6 @@ def _parse_to_np_array(s):
 	for idx, value in enumerate(data):
 		a[idx] = float(value)
 	return a
+
+def _remove_non_ascii(s):
+	return s.encode("ascii", errors="ignore").decode()
