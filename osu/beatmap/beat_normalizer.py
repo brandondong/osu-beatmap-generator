@@ -42,7 +42,16 @@ def get_timing_info(beats, onsets):
 			offset = int(round(y0 * 1000))
 			timing_points.append((offset, expected_interval * 1000))
 			last_beat = expected_beats[-1] * 1000
-	
+	else:
+		# TODO debugging purposes. Remove later.
+		print(bpm)
+		diffs = np.diff(beats * 1000)
+		expected = diffs - 409.0909
+		cumsum = np.cumsum(expected)
+		for i in range(num_beats - 1):
+			print(cumsum[i])
+			print(beats[i + 1])
+			print()
 	return timing_points, _map_bpm(timing_points, beats), last_beat
 	
 def _filter_edge_beats(beats, onsets):
