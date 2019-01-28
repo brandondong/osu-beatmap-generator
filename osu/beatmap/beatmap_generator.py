@@ -14,7 +14,7 @@ BEATROOT_JAR_PATH = "beatroot/beatroot.jar"
 MP3_NAME = "audio.mp3"
 CREATOR = "Skynet"
 
-def create_beatmapset(audio_file, target_diffs, dest_dir, title, artist):
+def create_beatmapset(audio_file, target_diffs, dst_file, title, artist):
 	# Use current time to generate unique file names for temporary files.
 	current_time = str(int(time.time()))
 
@@ -48,10 +48,8 @@ def create_beatmapset(audio_file, target_diffs, dest_dir, title, artist):
 	for diff in target_diffs:
 		_create_beatmap(diff, temp_dir, timing_points, map_bpm, title, artist)
 	
-	audio_file_basename = os.path.basename(audio_file)[:-4]
-	osz_base_filename = os.path.join(dest_dir, audio_file_basename)
-	shutil.make_archive(osz_base_filename, "zip", temp_dir)
-	shutil.move(f"{osz_base_filename}.zip", f"{osz_base_filename}.osz")
+	shutil.make_archive(temp_dir, "zip", temp_dir)
+	shutil.move(f"{temp_dir}.zip", dst_file)
 	
 	os.remove(temp_wav_name)
 	shutil.rmtree(temp_dir)
