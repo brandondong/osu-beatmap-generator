@@ -14,7 +14,7 @@ BEATROOT_JAR_PATH = "beatroot/beatroot.jar"
 MP3_NAME = "audio.mp3"
 CREATOR = "Skynet"
 
-def create_beatmapset(audio_file, target_diffs, dst_file, title, artist):
+def create_beatmapset(audio_file, dst_file, target_diffs, title, artist):
 	# Use current time to generate unique file names for temporary files.
 	current_time = str(int(time.time()))
 
