@@ -70,3 +70,14 @@ class TestBeatNormalizer(unittest.TestCase):
 		self.assertEqual(timing_points, [(2000, 1000)])
 		self.assertEqual(bpm, 60)
 		self.assertEqual(last_beat, 6000)
+
+	def test_syncopated_shifted(self):
+		# 60 bpm but only 19 beat intervals in 20 seconds due to a misclassification with syncopation.
+		beats = np.arange(20) + beat_normalizer.BEAT_TRACKING_TIMING_OFFSET
+		beats[5:15] += 0.5
+		beats[15:] += 1
+		self.assertEqual(beats[-1], 20 + beat_normalizer.BEAT_TRACKING_TIMING_OFFSET)
+		timing_points, bpm, last_beat = beat_normalizer.get_timing_info(beats, onsets=beats)
+		self.assertEqual(timing_points, [(0, 1000)])
+		self.assertEqual(bpm, 60)
+		self.assertEqual(last_beat, 20000)

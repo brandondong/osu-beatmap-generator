@@ -15,8 +15,6 @@ def get_timing_info(beats, onsets):
 
 	beats = beats - BEAT_TRACKING_TIMING_OFFSET
 	onsets = onsets - BEAT_TRACKING_TIMING_OFFSET
-	timing_points = []
-	last_beat = beats[-1] * 1000
 	
 	# Ignore starting and ending beats found to be likely happening during musical breaks.
 	beats = _filter_edge_beats(beats, onsets)
@@ -27,8 +25,7 @@ def get_timing_info(beats, onsets):
 	total_time = beats[-1] - beats[0]
 	bpm = (num_beats - 1) / total_time * 60
 	round_bpm = round(bpm)
-	percentage_diff = abs(round_bpm - bpm) / bpm * 100
-	if percentage_diff < WHOLE_NUMBER_BPM_THRESHOLD:
+	if _within_whole_number_beat_threshold(bpm, round_bpm):
 		# Second check is to ensure the beats are fairly constant throughout.
 		# Calculate the expected number of seconds between each beat.
 		expected_interval = 60 / round_bpm
@@ -39,20 +36,34 @@ def get_timing_info(beats, onsets):
 		avg_diff = np.mean(np.abs(expected_beats - beats))
 		avg_diff_percent = avg_diff / expected_interval * 100
 		if avg_diff_percent < EXPECTED_INTERVAL_DIFF_THRESHOLD:
-			offset = int(round(y0 * 1000))
-			timing_points.append((offset, expected_interval * 1000))
-			last_beat = expected_beats[-1] * 1000
-	else:
-		# TODO debugging purposes. Remove later.
-		print(bpm)
-		diffs = np.diff(beats * 1000)
-		expected = diffs - 409.0909
-		cumsum = np.cumsum(expected)
-		for i in range(num_beats - 1):
-			print(cumsum[i])
-			print(beats[i + 1])
-			print()
-	return timing_points, _map_bpm(timing_points, beats), last_beat
+			offset = _milis_to_rounded_sec(y0)
+			timing_points = [(offset, expected_interval * 1000)]
+			last_beat = _milis_to_rounded_sec(expected_beats[-1])
+			return timing_points, round_bpm, last_beat
+	
+	# Check again for a whole number bpm but assuming we miscounted a beat. This happens regularly with syncopation.
+	bpm = num_beats / total_time * 60
+	round_bpm = round(bpm)
+	if _within_whole_number_beat_threshold(bpm, round_bpm):
+		# Line fitting for the starting beat cannot rely on the beat positions anymore as they may have been uniformly shifted.
+		# Just use the starting and ending beat to estimate the mean.
+		expected_interval = 60 / round_bpm
+		y0 = (beats[-1] - beats[0]) / 2 - expected_interval * num_beats / 2
+		offset = _milis_to_rounded_sec(y0)
+		timing_points = [(offset, expected_interval * 1000)]
+		last_beat = _milis_to_rounded_sec(beats[-1])
+		return timing_points, round_bpm, last_beat
+
+	# TODO debugging purposes. Remove later.
+	print(bpm)
+	diffs = np.diff(beats * 1000)
+	expected = diffs - 409.0909
+	cumsum = np.cumsum(expected)
+	for i in range(num_beats - 1):
+		print(cumsum[i])
+		print(beats[i + 1])
+		print()
+	raise Exception("Not yet implemented")
 	
 def _filter_edge_beats(beats, onsets):
 	# Use a sliding window to filter out beats with few neighbouring onsets.
@@ -111,20 +122,10 @@ def _beat_end_index_with_onset(beats, onsets, right_index):
 		if num_between >= 1:
 			return end_index
 	return right_index
-	
-def _map_bpm(timing_points, beats):
-	# Map bpm appears to be the longest duration timing point where the last point is to the last object.
-	max_length = 0
-	max_index = -1
-	for i, tp in enumerate(timing_points):
-		if i == len(timing_points) - 1:
-			# Last point.
-			length = beats[-1] * 1000 - tp[0]
-		else:
-			length = timing_points[i + 1][0] - tp[0]
-		if length >= max_length:
-			max_length = length
-			max_index = i
-	
-	interval = timing_points[max_index][1]
-	return 1 / interval * 60000
+
+def _within_whole_number_beat_threshold(bpm, round_bpm):
+	percentage_diff = abs(round_bpm - bpm) / bpm * 100
+	return percentage_diff < WHOLE_NUMBER_BPM_THRESHOLD
+
+def _milis_to_rounded_sec(milis):
+	return int(round(milis * 1000))
