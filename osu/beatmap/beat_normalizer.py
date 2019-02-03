@@ -19,40 +19,55 @@ def get_timing_info(beats, onsets):
 	# Ignore starting and ending beats found to be likely happening during musical breaks.
 	beats = _filter_edge_beats(beats, onsets)
 	
-	# Check if it matches a whole number bpm by first considering the time between the first and last beat.
-	# Optimistically, the length between these beats would be high and would cancel out any noise.
-	num_beats = beats.shape[0]
-	total_time = beats[-1] - beats[0]
-	bpm = (num_beats - 1) / total_time * 60
-	round_bpm = round(bpm)
-	if _within_whole_number_beat_threshold(bpm, round_bpm):
-		# Second check is to ensure the beats are fairly constant throughout.
-		# Calculate the expected number of seconds between each beat.
-		expected_interval = 60 / round_bpm
-		# Fit a line to the recorded beat times where the slope is the expected interval and the y-intercept is the starting beat.
-		y0 = np.mean(beats) - expected_interval * (num_beats - 1) / 2
-		expected_beats = np.arange(num_beats) * expected_interval + y0
+	if _likely_single_bpm(beats):
+		# Check if it matches a whole number bpm by first considering the time between the first and last beat.
+		# Optimistically, the length between these beats would be high and would cancel out any noise.
+		num_beats = beats.shape[0]
+		total_time = beats[-1] - beats[0]
+		bpm = (num_beats - 1) / total_time * 60
+		round_bpm = round(bpm)
+		if _within_whole_number_beat_threshold(bpm, round_bpm):
+			# Calculate the expected number of seconds between each beat.
+			expected_interval = 60 / round_bpm
+			# Fit a line to the recorded beat times where the slope is the expected interval and the y-intercept is the starting beat.
+			y0 = np.mean(beats) - expected_interval * (num_beats - 1) / 2
+			expected_beats = np.arange(num_beats) * expected_interval + y0
+			
+			# Second check is to filter out syncopated false positives by comparing with the expected beats.
+			avg_diff = np.mean(np.abs(expected_beats - beats))
+			avg_diff_percent = avg_diff / expected_interval * 100
+			if avg_diff_percent < EXPECTED_INTERVAL_DIFF_THRESHOLD:
+				offset = _sec_to_rounded_milis(y0)
+				timing_points = [(offset, expected_interval * 1000)]
+				last_beat = _sec_to_rounded_milis(expected_beats[-1])
+				return timing_points, round_bpm, last_beat
 		
-		avg_diff = np.mean(np.abs(expected_beats - beats))
-		avg_diff_percent = avg_diff / expected_interval * 100
-		if avg_diff_percent < EXPECTED_INTERVAL_DIFF_THRESHOLD:
-			offset = _milis_to_rounded_sec(y0)
+		# Check again for a whole number bpm but assuming we miscounted a beat. This happens regularly with syncopation.
+		adjusted_bpm = num_beats / total_time * 60
+		round_bpm = round(adjusted_bpm)
+		if _within_whole_number_beat_threshold(adjusted_bpm, round_bpm):
+			# Line fitting for the starting beat cannot rely on the beat positions anymore as they may have been uniformly shifted.
+			# Just use the starting and ending beat to estimate the mean.
+			expected_interval = 60 / round_bpm
+			y0 = (beats[-1] + beats[0]) / 2 - expected_interval * num_beats / 2
+			offset = _sec_to_rounded_milis(y0)
 			timing_points = [(offset, expected_interval * 1000)]
-			last_beat = _milis_to_rounded_sec(expected_beats[-1])
+			last_beat = _sec_to_rounded_milis(beats[-1])
 			return timing_points, round_bpm, last_beat
-	
-	# Check again for a whole number bpm but assuming we miscounted a beat. This happens regularly with syncopation.
-	bpm = num_beats / total_time * 60
-	round_bpm = round(bpm)
-	if _within_whole_number_beat_threshold(bpm, round_bpm):
-		# Line fitting for the starting beat cannot rely on the beat positions anymore as they may have been uniformly shifted.
-		# Just use the starting and ending beat to estimate the mean.
-		expected_interval = 60 / round_bpm
-		y0 = (beats[-1] - beats[0]) / 2 - expected_interval * num_beats / 2
-		offset = _milis_to_rounded_sec(y0)
-		timing_points = [(offset, expected_interval * 1000)]
-		last_beat = _milis_to_rounded_sec(beats[-1])
-		return timing_points, round_bpm, last_beat
+
+		# Check if one and a half beats were misclassified to a single beat.
+		# We can be pretty confident of this case if it matches a whole number bpm after adjustment and not before.
+		bpm *= 1.5
+		round_bpm = round(bpm)
+		if _within_whole_number_beat_threshold(bpm, round_bpm):
+			# Choose how to offset the new smaller beat interval. 
+			pass
+
+		# Perform the syncopation check again.
+		adjusted_bpm *= 1.5
+		round_bpm = round(adjusted_bpm)
+		if _within_whole_number_beat_threshold(adjusted_bpm, round_bpm):
+			pass
 
 	# TODO debugging purposes. Remove later.
 	print(bpm)
@@ -64,6 +79,9 @@ def get_timing_info(beats, onsets):
 		print(beats[i + 1])
 		print()
 	raise Exception("Not yet implemented")
+
+def _likely_single_bpm(beats):
+	return True
 	
 def _filter_edge_beats(beats, onsets):
 	# Use a sliding window to filter out beats with few neighbouring onsets.
@@ -127,5 +145,5 @@ def _within_whole_number_beat_threshold(bpm, round_bpm):
 	percentage_diff = abs(round_bpm - bpm) / bpm * 100
 	return percentage_diff < WHOLE_NUMBER_BPM_THRESHOLD
 
-def _milis_to_rounded_sec(milis):
+def _sec_to_rounded_milis(milis):
 	return int(round(milis * 1000))
