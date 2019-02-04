@@ -156,4 +156,5 @@ info_label = InfoLabel(mainframe, column=0, row=5, columnspan=2, sticky=E)
 
 for child in mainframe.winfo_children():
     child.grid_configure(padx=5, pady=5)
+root.iconbitmap("obg.ico")
 root.mainloop()
