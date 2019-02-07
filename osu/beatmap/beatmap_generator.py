@@ -127,7 +127,7 @@ def _read_and_delete_beats_file(filename):
 	
 def _parse_to_np_array(s):
 	data = s.split(",")
-	a = np.zeros(len(data))
+	a = np.empty(len(data))
 	
 	for idx, value in enumerate(data):
 		a[idx] = float(value)

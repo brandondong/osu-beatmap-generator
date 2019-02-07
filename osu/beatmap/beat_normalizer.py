@@ -52,7 +52,7 @@ def get_timing_info(beats, onsets):
 			y0 = (beats[-1] + beats[0]) / 2 - expected_interval * num_beats / 2
 			offset = _sec_to_rounded_milis(y0)
 			timing_points = [(offset, expected_interval * 1000)]
-			last_beat = _sec_to_rounded_milis(beats[-1])
+			last_beat = _sec_to_rounded_milis(y0 + num_beats * expected_interval)
 			return timing_points, round_bpm, last_beat
 
 		# Check if one and a half beats were misclassified to a single beat.
@@ -60,8 +60,13 @@ def get_timing_info(beats, onsets):
 		bpm *= 1.5
 		round_bpm = round(bpm)
 		if _within_whole_number_beat_threshold(bpm, round_bpm):
-			# Choose how to offset the new smaller beat interval. 
-			pass
+			expected_interval = 60 / round_bpm
+			# Choose how to offset the new smaller beat interval.
+			y0, adjusted_num_beats = _choose_offset_for_beat_within_case(beats, onsets)
+			offset = _sec_to_rounded_milis(y0)
+			timing_points = [(offset, expected_interval * 1000)]
+			last_beat = _sec_to_rounded_milis(y0 + adjusted_num_beats * expected_interval)
+			return timing_points, round_bpm, last_beat
 
 		# Perform the syncopation check again.
 		adjusted_bpm *= 1.5
@@ -78,6 +83,8 @@ def get_timing_info(beats, onsets):
 		print(cumsum[i])
 		print(beats[i + 1])
 		print()
+	# The client seems to choose the overall bpm using the longest duration timing point.
+	# The distribution of bpm's for this case is continuous so set the overall to the median to avoid outliers.
 	raise Exception("Not yet implemented")
 
 def _likely_single_bpm(beats):
@@ -144,6 +151,53 @@ def _beat_end_index_with_onset(beats, onsets, right_index):
 def _within_whole_number_beat_threshold(bpm, round_bpm):
 	percentage_diff = abs(round_bpm - bpm) / bpm * 100
 	return percentage_diff < WHOLE_NUMBER_BPM_THRESHOLD
+
+def _choose_offset_for_beat_within_case(beats, onsets):
+	intervals = np.diff(beats)
+	beats_o1 = beats[:-1] + intervals / 3
+	beats_o2 = beats[:-1] + 2 * intervals / 3
+	total_size = 3 * beats.size - 2
+	total_beats = np.empty(total_size)
+	total_beats[0::3] = beats
+	total_beats[1::3] = beats_o1
+	total_beats[2::3] = beats_o2
+
+	i = 0
+	count1 = 0
+	count2 = 0
+	while True:
+		i1 = 2 * i
+		i2 = 2 * i + 1
+		if i1 >= total_size and i2 >= total_size:
+			break
+		elif i1 >= total_size:
+			count2 += 1
+		elif i2 >= total_size:
+			count1 += 1
+		else:
+			b1 = total_beats[i1]
+			b2 = total_beats[i2]
+			# Find the closest onset to each beat.
+			d1 = _closest_sorted_dist(b1, onsets)
+			d2 = _closest_sorted_dist(b2, onsets)
+			if d1 <= d2:
+				count1 += 1
+			else:
+				count2 += 1
+		i += 1
+	if count1 >= count2:
+		return total_beats[0], (total_size - 1) // 2
+	else:
+		return total_beats[1], (total_size - 2) // 2
+
+def _closest_sorted_dist(val, a):
+	right_index = np.searchsorted(a, val, side="left")
+	left_index = right_index - 1
+	if left_index < 0:
+		return abs(a[right_index] - val)
+	if right_index >= a.size:
+		return abs(a[left_index] - val)
+	return min(abs(a[right_index] - val), abs(a[left_index] - val))
 
 def _sec_to_rounded_milis(milis):
 	return int(round(milis * 1000))

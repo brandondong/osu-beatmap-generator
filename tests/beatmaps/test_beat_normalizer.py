@@ -92,3 +92,23 @@ class TestBeatNormalizer(unittest.TestCase):
 		self.assertEqual(timing_points, [(10000, 1000)])
 		self.assertEqual(bpm, 60)
 		self.assertEqual(last_beat, 31000)
+
+	def test_inner_beat(self):
+		# 6 seconds per beat (10 bpm) but misclassified as 9 seconds per beat.
+		beats = np.array([0, 9, 18, 27]) + beat_normalizer.BEAT_TRACKING_TIMING_OFFSET
+		# Onsets match exactly the true beat.
+		onsets = np.array([0, 6, 12, 18, 24]) + beat_normalizer.BEAT_TRACKING_TIMING_OFFSET
+		timing_points, bpm, last_beat = beat_normalizer.get_timing_info(beats, onsets)
+		self.assertEqual(timing_points, [(0, 6000)])
+		self.assertEqual(bpm, 10)
+		self.assertEqual(last_beat, 24000)
+
+	def test_inner_beat_offset(self):
+		# 6 seconds per beat (10 bpm) but misclassified as 9 seconds per beat.
+		beats = np.array([0, 9, 18, 27]) + beat_normalizer.BEAT_TRACKING_TIMING_OFFSET
+		# Onsets match exactly the true beat with offset.
+		onsets = np.array([3, 9, 15, 21, 27]) + beat_normalizer.BEAT_TRACKING_TIMING_OFFSET
+		timing_points, bpm, last_beat = beat_normalizer.get_timing_info(beats, onsets)
+		self.assertEqual(timing_points, [(3000, 6000)])
+		self.assertEqual(bpm, 10)
+		self.assertEqual(last_beat, 27000)
