@@ -1,8 +1,11 @@
+import os
 import unittest
 
 import numpy as np
 
 from beatmap import beat_normalizer
+
+TEST_BEAT_DATA_DIR = "../tests/resources/"
 
 class TestBeatNormalizer(unittest.TestCase):
 	def test_whole_number_bpm_unchanged(self):
@@ -121,3 +124,31 @@ class TestBeatNormalizer(unittest.TestCase):
 		self.assertEqual(timing_points, [(3000, 6000)])
 		self.assertEqual(bpm, 10)
 		self.assertEqual(last_beat, 27000)
+
+	def test_real_beat_data(self):
+		for filename in os.listdir(TEST_BEAT_DATA_DIR):
+			filename = os.path.join(TEST_BEAT_DATA_DIR, filename)
+			beats, onsets, expected_bpm = self._read_beats_file(filename)
+			expected_interval = 60000 / expected_bpm
+			timing_points, bpm, _ = beat_normalizer.get_timing_info(beats, onsets)
+			self.assertEqual(len(timing_points), 1)
+			self.assertEqual(bpm, expected_bpm)
+			self.assertAlmostEqual(timing_points[0][1], expected_interval)
+
+	def _read_beats_file(self, filename):
+		with open(filename, mode="r") as csv_file:
+			beat_contents = csv_file.readline()
+			onset_contents = csv_file.readline()
+			expected_bpm = float(csv_file.readline())
+		
+		beats = self._parse_to_np_array(beat_contents)
+		onsets = self._parse_to_np_array(onset_contents)
+		return beats, onsets, expected_bpm
+	
+	def _parse_to_np_array(self, s):
+		data = s.split(",")
+		a = np.empty(len(data))
+		
+		for idx, value in enumerate(data):
+			a[idx] = float(value)
+		return a			
