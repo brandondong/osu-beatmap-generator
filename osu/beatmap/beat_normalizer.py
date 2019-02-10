@@ -62,17 +62,29 @@ def get_timing_info(beats, onsets):
 		if _within_whole_number_beat_threshold(bpm, round_bpm):
 			expected_interval = 60 / round_bpm
 			# Choose how to offset the new smaller beat interval.
-			y0, adjusted_num_beats = _choose_offset_for_beat_within_case(beats, onsets)
+			adjusted_beats = _choose_offset_sequence_for_beat_within_case(beats, onsets)
+			adjusted_num_intervals = adjusted_beats.size - 1
+			y0 = np.mean(adjusted_beats) - expected_interval * adjusted_num_intervals / 2
 			offset = _sec_to_rounded_milis(y0)
 			timing_points = [(offset, expected_interval * 1000)]
-			last_beat = _sec_to_rounded_milis(y0 + adjusted_num_beats * expected_interval)
+			last_beat = _sec_to_rounded_milis(y0 + adjusted_num_intervals * expected_interval)
 			return timing_points, round_bpm, last_beat
 
 		# Perform the syncopation check again.
 		adjusted_bpm *= 1.5
 		round_bpm = round(adjusted_bpm)
 		if _within_whole_number_beat_threshold(adjusted_bpm, round_bpm):
-			pass
+			expected_interval = 60 / round_bpm
+			# Generate beats necessary for the offset selection function.
+			detected_beat_interval = expected_interval * 1.5
+			y0 = (beats[-1] + beats[0]) / 2 - detected_beat_interval * num_beats / 2
+			pseudo_beats = np.arange(num_beats + 1) * detected_beat_interval + y0
+			# Choose how to offset the new smaller beat interval.
+			adjusted_beats = _choose_offset_sequence_for_beat_within_case(pseudo_beats, onsets)
+			offset = _sec_to_rounded_milis(adjusted_beats[0])
+			timing_points = [(offset, expected_interval * 1000)]
+			last_beat = _sec_to_rounded_milis(adjusted_beats[-1])
+			return timing_points, round_bpm, last_beat
 
 	# TODO debugging purposes. Remove later.
 	print(bpm)
@@ -152,7 +164,7 @@ def _within_whole_number_beat_threshold(bpm, round_bpm):
 	percentage_diff = abs(round_bpm - bpm) / bpm * 100
 	return percentage_diff < WHOLE_NUMBER_BPM_THRESHOLD
 
-def _choose_offset_for_beat_within_case(beats, onsets):
+def _choose_offset_sequence_for_beat_within_case(beats, onsets):
 	intervals = np.diff(beats)
 	beats_o1 = beats[:-1] + intervals / 3
 	beats_o2 = beats[:-1] + 2 * intervals / 3
@@ -186,9 +198,9 @@ def _choose_offset_for_beat_within_case(beats, onsets):
 				count2 += 1
 		i += 1
 	if count1 >= count2:
-		return total_beats[0], (total_size - 1) // 2
+		return total_beats[0::2]
 	else:
-		return total_beats[1], (total_size - 2) // 2
+		return total_beats[1::2]
 
 def _closest_sorted_dist(val, a):
 	right_index = np.searchsorted(a, val, side="left")

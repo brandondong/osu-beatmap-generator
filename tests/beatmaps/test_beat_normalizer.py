@@ -112,3 +112,12 @@ class TestBeatNormalizer(unittest.TestCase):
 		self.assertEqual(timing_points, [(3000, 6000)])
 		self.assertEqual(bpm, 10)
 		self.assertEqual(last_beat, 27000)
+
+	def test_inner_beat_syncopation(self):
+		# 6 seconds per beat (10 bpm) but misclassified as 9 seconds per beat also with a missing beat.
+		beats = np.array([0, 13, 27]) + beat_normalizer.BEAT_TRACKING_TIMING_OFFSET
+		onsets = np.array([3, 9, 15, 21, 27]) + beat_normalizer.BEAT_TRACKING_TIMING_OFFSET
+		timing_points, bpm, last_beat = beat_normalizer.get_timing_info(beats, onsets)
+		self.assertEqual(timing_points, [(3000, 6000)])
+		self.assertEqual(bpm, 10)
+		self.assertEqual(last_beat, 27000)
