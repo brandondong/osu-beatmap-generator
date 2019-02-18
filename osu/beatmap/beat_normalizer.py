@@ -1,7 +1,10 @@
+import math
+
 import numpy as np
 
 WHOLE_NUMBER_BPM_THRESHOLD = 0.05
 EXPECTED_INTERVAL_DIFF_THRESHOLD = 10
+SINGLE_BPM_THRESHOLD = 0.05
 
 # Timing offset to handle a beat tracker's consistent deviation.
 BEAT_TRACKING_TIMING_OFFSET = 0.034
@@ -18,8 +21,9 @@ def get_timing_info(beats, onsets):
 	
 	# Ignore starting and ending beats found to be likely happening during musical breaks.
 	beats = _filter_edge_beats(beats, onsets)
+	intervals = np.diff(beats)
 	
-	if _likely_single_bpm(beats):
+	if _likely_single_bpm(beats, intervals):
 		# Check if it matches a whole number bpm by first considering the time between the first and last beat.
 		# Optimistically, the length between these beats would be high and would cancel out any noise.
 		num_beats = beats.shape[0]
@@ -41,6 +45,40 @@ def get_timing_info(beats, onsets):
 				timing_points = [(offset, expected_interval * 1000)]
 				last_beat = _sec_to_rounded_milis(expected_beats[-1])
 				return timing_points, round_bpm, last_beat
+
+		# Check if one and a half beats were misclassified to a single beat.
+		multiplied_bpm = bpm * 1.5
+		round_bpm = round(multiplied_bpm)
+		if _within_whole_number_beat_threshold(multiplied_bpm, round_bpm):
+			expected_interval = 60 / round_bpm
+			# Choose how to offset the new smaller beat interval.
+			adjusted_beats = _choose_offset_sequence_for_beat_within_case(beats, onsets, intervals)
+			adjusted_num_beats = adjusted_beats.size
+			y0 = np.mean(adjusted_beats) - expected_interval * (adjusted_num_beats - 1) / 2
+			expected_beats = np.arange(adjusted_num_beats) * expected_interval + y0
+
+			avg_diff = np.mean(np.abs(expected_beats - adjusted_beats))
+			avg_diff_percent = avg_diff / expected_interval * 100
+			if avg_diff_percent < EXPECTED_INTERVAL_DIFF_THRESHOLD:
+				offset = _sec_to_rounded_milis(y0)
+				timing_points = [(offset, expected_interval * 1000)]
+				last_beat = _sec_to_rounded_milis(expected_beats[-1])
+				return timing_points, round_bpm, last_beat
+
+		# Try neighbouring whole number bpm's and calculate the best fit.
+		if not _needs_multiplier():
+			floor_bpm = math.floor(bpm)
+			ceiling_bpm = math.ceil(bpm)
+			floor_score = _bpm_score(floor_bpm, onsets, beats[0], beats[-1])
+			ceiling_score = _bpm_score(ceiling_bpm, onsets, beats[0], beats[-1])
+			better_bpm = floor_bpm if floor_score >= ceiling_score else ceiling_bpm
+
+			expected_interval = 60 / better_bpm
+			offset = _sec_to_rounded_milis(beats[0])
+			last_beat = math.floor((beats[-1] - beats[0]) / expected_interval) * expected_interval + beats[0]
+			timing_points = [(offset, expected_interval * 1000)]
+		else:
+			pass
 		
 		# Check again for a whole number bpm but assuming we miscounted a beat. This happens regularly with syncopation.
 		adjusted_bpm = num_beats / total_time * 60
@@ -55,21 +93,6 @@ def get_timing_info(beats, onsets):
 			last_beat = _sec_to_rounded_milis(y0 + num_beats * expected_interval)
 			return timing_points, round_bpm, last_beat
 
-		# Check if one and a half beats were misclassified to a single beat.
-		# We can be pretty confident of this case if it matches a whole number bpm after adjustment and not before.
-		bpm *= 1.5
-		round_bpm = round(bpm)
-		if _within_whole_number_beat_threshold(bpm, round_bpm):
-			expected_interval = 60 / round_bpm
-			# Choose how to offset the new smaller beat interval.
-			adjusted_beats = _choose_offset_sequence_for_beat_within_case(beats, onsets)
-			adjusted_num_intervals = adjusted_beats.size - 1
-			y0 = np.mean(adjusted_beats) - expected_interval * adjusted_num_intervals / 2
-			offset = _sec_to_rounded_milis(y0)
-			timing_points = [(offset, expected_interval * 1000)]
-			last_beat = _sec_to_rounded_milis(y0 + adjusted_num_intervals * expected_interval)
-			return timing_points, round_bpm, last_beat
-
 		# Perform the syncopation check again.
 		adjusted_bpm *= 1.5
 		round_bpm = round(adjusted_bpm)
@@ -80,27 +103,29 @@ def get_timing_info(beats, onsets):
 			y0 = (beats[-1] + beats[0]) / 2 - detected_beat_interval * num_beats / 2
 			pseudo_beats = np.arange(num_beats + 1) * detected_beat_interval + y0
 			# Choose how to offset the new smaller beat interval.
-			adjusted_beats = _choose_offset_sequence_for_beat_within_case(pseudo_beats, onsets)
+			adjusted_beats = _choose_offset_sequence_for_beat_within_case(pseudo_beats, onsets, np.diff(pseudo_beats))
 			offset = _sec_to_rounded_milis(adjusted_beats[0])
 			timing_points = [(offset, expected_interval * 1000)]
 			last_beat = _sec_to_rounded_milis(adjusted_beats[-1])
 			return timing_points, round_bpm, last_beat
 
-	# TODO debugging purposes. Remove later.
-	print(bpm)
-	diffs = np.diff(beats * 1000)
-	expected = diffs - 409.0909
-	cumsum = np.cumsum(expected)
-	for i in range(num_beats - 1):
-		print(cumsum[i])
-		print(beats[i + 1])
-		print()
-	# The client seems to choose the overall bpm using the longest duration timing point.
-	# The distribution of bpm's for this case is continuous so set the overall to the median to avoid outliers.
-	raise Exception("Not yet implemented")
+	timing_points = []
+	for i in range(beats.size - 1):
+		offset = _sec_to_rounded_milis(beats[i])
+		timing_points.append((offset, intervals[i] * 1000))
+	last_beat = _sec_to_rounded_milis(beats[-1])
+	return timing_points, 60 / np.median(intervals), last_beat
 
-def _likely_single_bpm(beats):
-	return True
+def _likely_single_bpm(beats, intervals):
+	# Calculate the average distance from the mean.
+	avg = np.mean(intervals)
+	avg_dist = np.mean(np.abs(intervals - avg))
+	# And normalize that value.
+	normalized_avg_dist = avg_dist / avg
+	return normalized_avg_dist < SINGLE_BPM_THRESHOLD
+
+def _needs_multiplier():
+	return False
 	
 def _filter_edge_beats(beats, onsets):
 	# Use a sliding window to filter out beats with few neighbouring onsets.
@@ -164,8 +189,7 @@ def _within_whole_number_beat_threshold(bpm, round_bpm):
 	percentage_diff = abs(round_bpm - bpm) / bpm * 100
 	return percentage_diff < WHOLE_NUMBER_BPM_THRESHOLD
 
-def _choose_offset_sequence_for_beat_within_case(beats, onsets):
-	intervals = np.diff(beats)
+def _choose_offset_sequence_for_beat_within_case(beats, onsets, intervals):
 	beats_o1 = beats[:-1] + intervals / 3
 	beats_o2 = beats[:-1] + 2 * intervals / 3
 	total_size = 3 * beats.size - 2
@@ -210,6 +234,9 @@ def _closest_sorted_dist(val, a):
 	if right_index >= a.size:
 		return abs(a[left_index] - val)
 	return min(abs(a[right_index] - val), abs(a[left_index] - val))
+
+def _bpm_score(bpm, onsets, start, end):
+	return 0
 
 def _sec_to_rounded_milis(milis):
 	return int(round(milis * 1000))
