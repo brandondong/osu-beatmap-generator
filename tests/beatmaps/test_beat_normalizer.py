@@ -60,16 +60,16 @@ class TestBeatNormalizer(unittest.TestCase):
 	def test_syncopated_shifted(self):
 		# 60 bpm but one fewer beat due to a misclassification with syncopation.
 		beats = np.arange(201) + beat_normalizer.BEAT_TRACKING_TIMING_OFFSET
-		beats[5:15] += 0.5
-		beats[15:] += 1
+		beats[105:115] += 0.5
+		beats[115:] += 1
 		self.assertEqual(beats[-1], 201 + beat_normalizer.BEAT_TRACKING_TIMING_OFFSET)
 		self._assert_single_bpm_details(beats, onsets=beats, offset=0, interval=1000, last_beat=201000)
 
 	def test_syncopated_shifted_odd(self):
 		# 60 bpm but one fewer beat due to a misclassification with syncopation.
 		beats = np.arange(10, 200) + beat_normalizer.BEAT_TRACKING_TIMING_OFFSET
-		beats[5:15] += 0.5
-		beats[15:] += 1
+		beats[105:115] += 0.5
+		beats[115:] += 1
 		self.assertEqual(beats[-1], 200 + beat_normalizer.BEAT_TRACKING_TIMING_OFFSET)
 		self._assert_single_bpm_details(beats, onsets=beats, offset=10000, interval=1000, last_beat=200000)
 

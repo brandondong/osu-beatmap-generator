@@ -1,6 +1,7 @@
 import math
 
 import numpy as np
+from sklearn.linear_model import LinearRegression
 
 # Timing offset to handle a beat tracker's consistent deviation.
 BEAT_TRACKING_TIMING_OFFSET = 0.034
@@ -16,6 +17,9 @@ CLOSEST_ONSETS_FIT_FRACTION = 0.45
 
 # The fraction of closest onsets to use when evaluating a beat sequence.
 CLOSEST_ONSETS_EVALUATION_FRACTION = 0.9
+
+# The fraction of starting beats to fit a line through to determine the starting beat when generating beat sequences.
+START_BEAT_FIT_FRACTION = 0.25
 
 def get_timing_info(beats, onsets):
 	"""Extracts beatmap timing info from beat tracking data.
@@ -37,10 +41,14 @@ def get_timing_info(beats, onsets):
 	total_time = beats[-1] - beats[0]
 	bpm = num_intervals / total_time * 60
 
-	# The true bpm is assumed to be a whole number. Consider bpm's corresponding to the ceiling and floor.
+	# The true bpm is assumed to be a whole number. Consider bpm's corresponding to the ceiling and floor as well as one right outside of the range.
 	candidate_bpms = []
-	candidate_bpms.append(math.ceil(bpm))
-	candidate_bpms.append(math.floor(bpm))
+	ceil_bpm = math.ceil(bpm)
+	floor_bpm = math.floor(bpm)
+	additional_bpm = ceil_bpm + 1 if (ceil_bpm - bpm) < (bpm - floor_bpm) else floor_bpm - 1
+	candidate_bpms.append(ceil_bpm)
+	candidate_bpms.append(floor_bpm)
+	candidate_bpms.append(additional_bpm)
 	# And bpm's corresponding to the ceiling and floor if every one and a half beats were misclassified as a single beat which can happen in practice.
 	multiplied_bpm = bpm * 1.5
 	candidate_bpms.append(math.ceil(multiplied_bpm))
@@ -50,8 +58,9 @@ def get_timing_info(beats, onsets):
 	best_score = math.inf
 	best_sequence = None
 	best_bpm = None
+	start_beat = _candidate_start_beat(beats)
 	for candidate_bpm in candidate_bpms:
-		sequence = _generate_beats(candidate_bpm, beats)
+		sequence = _generate_beats(candidate_bpm, start_beat, beats[-1])
 		# Shift the beats to fit well with the observed onsets.
 		closest_onsets = _closest_onsets(sequence, onsets)
 		sequence = _fit_beats_to_closest_onsets(sequence, closest_onsets)
@@ -63,7 +72,8 @@ def get_timing_info(beats, onsets):
 			best_bpm = candidate_bpm
 	
 	first_beat = _sec_to_rounded_milis(best_sequence[0])
-	last_beat = _sec_to_rounded_milis(best_sequence[-1])
+	# Regenerate the sequence with the shifted start to calculate the correct last beat.
+	last_beat = _sec_to_rounded_milis(_generate_beats(best_bpm, best_sequence[0], beats[-1])[-1])
 	interval_ms = 60000 / best_bpm
 	timing_points = [(first_beat, interval_ms)]
 	return timing_points, best_bpm, last_beat
@@ -146,11 +156,9 @@ def _beat_end_index_with_onset(beats, onsets, right_index):
 			return end_index
 	return right_index
 
-def _generate_beats(bpm, beats):
+def _generate_beats(bpm, start, end):
 	# Generate a sequence that starts on the first detected beat and ends before the last.
 	interval = 60 / bpm
-	start = beats[0]
-	end = beats[-1]
 	num_intervals_within = int((end - start) / interval)
 	return np.arange(num_intervals_within + 1) * interval + start
 
@@ -181,3 +189,12 @@ def _score_beats_to_onsets(beats, closest_onsets):
 	dist = np.partition(dist, num_to_eval - 1)[:num_to_eval]
 	interval = beats[1] - beats[0]
 	return np.mean(dist) / interval
+
+def _candidate_start_beat(beats):
+	# Naively using the first beat when generating sequences can lead to incorrect results if it's a big outlier.
+	# Instead, fit a line through a fraction of the starting beats.
+	num_to_eval = max(int(beats.size * START_BEAT_FIT_FRACTION), 1)
+	X = np.arange(num_to_eval).reshape(-1, 1)
+	y = beats[:num_to_eval]
+	reg = LinearRegression().fit(X, y)
+	return reg.intercept_
