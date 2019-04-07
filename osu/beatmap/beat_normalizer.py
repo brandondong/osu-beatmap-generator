@@ -19,7 +19,7 @@ CLOSEST_ONSETS_FIT_FRACTION = 0.45
 CLOSEST_ONSETS_EVALUATION_FRACTION = 0.9
 
 # The fraction of starting beats to fit a line through to determine the starting beat when generating beat sequences.
-START_BEAT_FIT_FRACTION = 0.25
+START_BEAT_FIT_FRACTION = 0.1
 
 def get_timing_info(beats, onsets):
 	"""Extracts beatmap timing info from beat tracking data.
