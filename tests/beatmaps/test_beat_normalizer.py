@@ -6,9 +6,7 @@ import numpy as np
 
 from beatmap import beat_normalizer
 
-TEST_BEAT_DATA_DIR = "../tests/resources/"
-TEST_BEAT_DATA_SINGLE_BPM_DIR = TEST_BEAT_DATA_DIR + "single/"
-TEST_BEAT_DATA_MULTI_BPM_DIR = TEST_BEAT_DATA_DIR + "multi/"
+TEST_BEAT_DATA_DIR = "../tests/resources/beat_data/"
 
 
 class TestBeatNormalizer(unittest.TestCase):
@@ -113,23 +111,11 @@ class TestBeatNormalizer(unittest.TestCase):
         self._assert_single_bpm_details(
             beats, onsets, offset=3000, interval=6000, last_beat=27000)
 
-    def test_multi_bpm(self):
-        beats = np.array([0, 1, 3, 6]) + \
-            beat_normalizer.BEAT_TRACKING_TIMING_OFFSET
-        timing_points, bpm, last_beat = beat_normalizer.get_timing_info(
-            beats, onsets=beats)
-        expected = [(0, 1000), (1000, 2000), (3000, 3000)]
-        for i, timing_point in enumerate(timing_points):
-            self.assertEqual(timing_point[0], expected[i][0])
-            self.assertAlmostEqual(timing_point[1], expected[i][1])
-        self.assertEqual(bpm, 30)
-        self.assertEqual(last_beat, 6000)
-
     def test_real_beat_data_single_bpm(self):
         sum = 0
         count = 0
-        for file in os.listdir(TEST_BEAT_DATA_SINGLE_BPM_DIR):
-            filename = os.path.join(TEST_BEAT_DATA_SINGLE_BPM_DIR, file)
+        for file in os.listdir(TEST_BEAT_DATA_DIR):
+            filename = os.path.join(TEST_BEAT_DATA_DIR, file)
             beats, onsets, expected_bpm, expected_offset = _read_beats_file(
                 filename)
             expected_interval = 60000 / expected_bpm
@@ -156,15 +142,6 @@ class TestBeatNormalizer(unittest.TestCase):
         # Having an average of 0 minimizes the squared differences in offset.
         self.assertEqual(round(sum / count), 0)
 
-    def test_real_beat_data_multi_bpm(self):
-        for file in os.listdir(TEST_BEAT_DATA_MULTI_BPM_DIR):
-            filename = os.path.join(TEST_BEAT_DATA_MULTI_BPM_DIR, file)
-            beats, onsets, _, _ = _read_beats_file(filename)
-            timing_points, _, _ = beat_normalizer.get_timing_info(
-                beats, onsets)
-            fail_msg = f"Failed for {file}."
-            self.assertTrue(len(timing_points) > 1, msg=fail_msg)
-
     def _assert_single_bpm_details(self, beats, onsets, *, offset, interval, last_beat):
         timing_points, bpm, actual_last_beat = beat_normalizer.get_timing_info(
             beats, onsets)
@@ -181,11 +158,9 @@ def _read_beats_file(filename):
         beat_contents = csv_file.readline()
         onset_contents = csv_file.readline()
         expected_bpm_line = csv_file.readline()
-        expected_bpm = float(expected_bpm_line) if len(
-            expected_bpm_line) > 0 else None
+        expected_bpm = float(expected_bpm_line)
         expected_offset_line = csv_file.readline()
-        expected_offset = float(expected_offset_line) if len(
-            expected_offset_line) > 0 else None
+        expected_offset = float(expected_offset_line)
 
     beats = _parse_to_np_array(beat_contents)
     onsets = _parse_to_np_array(onset_contents)

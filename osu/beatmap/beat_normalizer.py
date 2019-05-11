@@ -9,9 +9,6 @@ BEAT_TRACKING_TIMING_OFFSET = 0.039
 # Window size used for filtering out start and end beats.
 EDGE_FILTER_WINDOW_SIZE = 4
 
-# Allowable average normalized distance from the mean among interval lengths to be considered a single bpm.
-SINGLE_BPM_THRESHOLD = 0.05
-
 # The fraction of closest onsets to use when fitting a beat sequence.
 CLOSEST_ONSETS_FIT_FRACTION = 0.45
 
@@ -33,9 +30,6 @@ def get_timing_info(beats, onsets):
     # Ignore starting and ending beats found to be devoid of onsets as we do not want those sections to be mapped.
     beats = _filter_edge_beats(beats, onsets)
     intervals = np.diff(beats)
-
-    if not _likely_single_bpm(beats, intervals):
-        return _handle_multi_bpm(beats, intervals)
 
     # Single bpm case. Calculate the overall bpm from the detected beats.
     num_intervals = intervals.size
@@ -80,25 +74,6 @@ def get_timing_info(beats, onsets):
     interval_ms = 60000 / best_bpm
     timing_points = [(first_beat, interval_ms)]
     return timing_points, best_bpm, last_beat
-
-
-def _likely_single_bpm(beats, intervals):
-    # Calculate the average distance from the mean.
-    avg = np.mean(intervals)
-    avg_dist = np.mean(np.abs(intervals - avg))
-    # And normalize that value.
-    normalized_avg_dist = avg_dist / avg
-    return normalized_avg_dist <= SINGLE_BPM_THRESHOLD
-
-
-def _handle_multi_bpm(beats, intervals):
-    # Create individual timing points for each beat interval.
-    timing_points = []
-    for i in range(beats.size - 1):
-        offset = _sec_to_rounded_milis(beats[i])
-        timing_points.append((offset, intervals[i] * 1000))
-    last_beat = _sec_to_rounded_milis(beats[-1])
-    return timing_points, 60 / np.median(intervals), last_beat
 
 
 def _sec_to_rounded_milis(milis):
