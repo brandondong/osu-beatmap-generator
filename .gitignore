@@ -5,7 +5,3 @@ weights/
 ffmpeg/
 
 __pycache__/
-
-*.class
-.classpath
-.project
