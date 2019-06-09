@@ -1,0 +1,3 @@
+[submodule "osu/beatroot/beatroot"]
+	path = osu/beatroot/beatroot
+	url = https://github.com/brandondong/beatroot
