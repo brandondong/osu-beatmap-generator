@@ -1,0 +1,24 @@
+import os
+import unittest
+
+from beatmap.beatmap import Beatmap
+
+TEST_BEATMAPS_DIR = "../tests/resources/beatmaps/"
+
+
+class TestBeatmap(unittest.TestCase):
+    def test_parse_no_breaks_beatmap(self):
+        path = os.path.join(TEST_BEATMAPS_DIR, "valid_no_breaks.osu")
+        beatmap = Beatmap.from_osu_file(path)
+        self.assertEqual("audio.mp3", beatmap.audio_path)
+        self.assertEqual("2060307", beatmap.id)
+        self.assertAlmostEqual(2, beatmap.hp)
+        self.assertAlmostEqual(3, beatmap.cs)
+        self.assertAlmostEqual(2, beatmap.od)
+        self.assertAlmostEqual(3, beatmap.ar)
+
+    def test_parse_wrong_mode(self):
+        pass
+
+    def test_parse_invalid_beatmap(self):
+        pass
