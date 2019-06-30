@@ -39,11 +39,25 @@ class HitObject:
         self.y = y
         self.offset = offset
 
+    def __str__(self):
+        return f"Offset: {self.offset}"
+
+
+class TimingPoint:
+    def __init__(self, offset, millis_per_beat):
+        self.offset = offset
+        self.millis_per_beat = millis_per_beat
+
+    def is_inherited(self):
+        return self.millis_per_beat < 0
+
+    def __str__(self):
+        return f"Offset: {self.offset}, {self.millis_per_beat}"
+
 
 def process_section(timing_points, hit_objects):
-    validate_timing_point_section(timing_points)
-    start = timing_points[0][0]
-    millis_per_beat_divisor = timing_points[0][1] / 4
+    start = timing_points[0].offset
+    millis_per_beat_divisor = timing_points[0].millis_per_beat / 4
     for hit_object in hit_objects:
         time_since_start = hit_object.offset - start
         num_divisors_from_start = int(
@@ -56,20 +70,58 @@ def process_section(timing_points, hit_objects):
             raise Exception("Hit object doesn't fall on a 1/4 beat divisor.")
 
 
-def validate_timing_point_section(timing_points):
+def partition_timing_points(timing_points, breaks):
+    if timing_points[0].is_inherited():
+        raise Exception("Invalid starting timing point.")
+
+    timing_point_sections = partition_entries(
+        timing_points, breaks, allowed_between_breaks=True)
+    for i, section in enumerate(timing_point_sections):
+        if len(section) == 0 or section[0].is_inherited():
+            # Make sure each section has a non-inherited timing point as the first entry.
+            previous_section = timing_point_sections[i - 1]
+            section.insert(0, previous_section[0])
+
+    millis_per_beat = timing_points[0].millis_per_beat
+    for section in timing_point_sections:
+        validate_timing_point_section(section, millis_per_beat)
+    return timing_point_sections
+
+
+def validate_timing_point_section(timing_points, millis_per_beat):
+    if timing_points[0].millis_per_beat != millis_per_beat:
+        raise Exception("Must be single bpm.")
     if any(
-            i > 0 and timing_point[1] >= 0 for i, timing_point in enumerate(timing_points)):
+            i > 0 and not timing_point.is_inherited() for i, timing_point in enumerate(timing_points)):
         raise Exception("Must be single bpm.")
 
 
-def partition_timing_points(timing_points, breaks):
-    if len(breaks) == 0:
-        return [timing_points]
-
-
 def partition_hit_objects(hit_objects, breaks):
-    if len(breaks) == 0:
-        return [hit_objects]
+    hit_object_sections = partition_entries(
+        hit_objects, breaks, allowed_between_breaks=False)
+    if any(len(section) == 0 for section in hit_object_sections):
+        raise Exception("Empty section between breaks.")
+    return hit_object_sections
+
+
+def partition_entries(entries, breaks, allowed_between_breaks):
+    sections = list(map(lambda e: [], range(len(breaks) + 1)))
+    for entry in entries:
+        offset = entry.offset
+        # Find the correct section to place the entry.
+        section_index = len(sections) - 1
+        for i, b in enumerate(breaks):
+            if b[0] <= offset and offset <= b[1]:
+                if allowed_between_breaks:
+                    section_index = -1
+                    break
+                raise Exception("Timing entry located during break.")
+            elif offset < b[0]:
+                section_index = i
+                break
+        if section_index != -1:
+            sections[section_index].append(entry)
+    return sections
 
 
 def validate_mode(general_props):
@@ -89,7 +141,7 @@ def parse_timing_points(f):
     for event in events:
         offset = int(event[0])
         millis_per_beat = float(event[1])
-        timing_points.append((offset, millis_per_beat))
+        timing_points.append(TimingPoint(offset, millis_per_beat))
     return timing_points
 
 

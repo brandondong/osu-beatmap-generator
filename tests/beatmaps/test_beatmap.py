@@ -17,6 +17,16 @@ class TestBeatmap(unittest.TestCase):
         self.assertAlmostEqual(2, beatmap.od)
         self.assertAlmostEqual(3, beatmap.ar)
 
+    def test_parse_breaks_beatmap(self):
+        path = os.path.join(TEST_BEATMAPS_DIR, "valid_breaks.osu")
+        beatmap = Beatmap.from_osu_file(path)
+        self.assertEqual("tokyo.mp3", beatmap.audio_path)
+        self.assertEqual("801333", beatmap.id)
+        self.assertAlmostEqual(1, beatmap.hp)
+        self.assertAlmostEqual(2.5, beatmap.cs)
+        self.assertAlmostEqual(1, beatmap.od)
+        self.assertAlmostEqual(2, beatmap.ar)
+
     def test_parse_wrong_mode(self):
         pass
 
