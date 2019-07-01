@@ -6,30 +6,19 @@ class Beatmap:
     def from_osu_file(path):
         beatmap = Beatmap()
         with open(path, "r", encoding="utf-8") as f:
-            props = parse_section(f, "General")
-            validate_mode(props)
-            beatmap.audio_path = props["AudioFilename"]
-
-            props = parse_section(f, "Metadata")
-            beatmap.id = props["BeatmapID"]
-
-            props = parse_section(f, "Difficulty")
-            beatmap.hp = float(props["HPDrainRate"])
-            beatmap.cs = float(props["CircleSize"])
-            beatmap.od = float(props["OverallDifficulty"])
-            beatmap.ar = float(props["ApproachRate"])
+            parse_general(f, beatmap)
+            parse_metadata(f, beatmap)
+            parse_difficulty(f, beatmap)
 
             breaks = parse_breaks(f)
             timing_points = parse_timing_points(f)
             hit_objects = parse_hit_objects(f)
 
-            # Split timing points and hit objects into sections separated by the breaks.
-            timing_point_sections = partition_timing_points(
-                timing_points, breaks)
+            # Split hit objects into sections separated by the breaks.
             hit_objects_sections = partition_hit_objects(hit_objects, breaks)
             for i in range(len(hit_objects_sections)):
                 process_section(
-                    timing_point_sections[i], hit_objects_sections[i])
+                    timing_points, hit_objects_sections[i])
         return beatmap
 
 
@@ -40,7 +29,10 @@ class HitObject:
         self.offset = offset
 
     def __str__(self):
-        return f"Offset: {self.offset}"
+        minutes_decimal = self.offset / 1000 / 60
+        minutes = int(minutes_decimal)
+        seconds = (minutes_decimal - minutes) * 60
+        return f"[offset={self.offset} ({minutes}:{seconds:.3f})]"
 
 
 class TimingPoint:
@@ -52,12 +44,13 @@ class TimingPoint:
         return self.millis_per_beat < 0
 
     def __str__(self):
-        return f"Offset: {self.offset}, {self.millis_per_beat}"
+        return f"[{self.offset}, {self.millis_per_beat}]"
 
 
 def process_section(timing_points, hit_objects):
-    start = timing_points[0].offset
-    millis_per_beat_divisor = timing_points[0].millis_per_beat / 4
+    starting_point = starting_timing_point(timing_points, hit_objects)
+    start = starting_point.offset
+    millis_per_beat_divisor = starting_point.millis_per_beat / 4
     for hit_object in hit_objects:
         time_since_start = hit_object.offset - start
         num_divisors_from_start = int(
@@ -67,66 +60,31 @@ def process_section(timing_points, hit_objects):
         # The editor appears to always round down but we can remove that assumption by checking if within one millisecond.
         millis_diff = abs(predicted_offset - hit_object.offset)
         if millis_diff > 1:
-            raise Exception("Hit object doesn't fall on a 1/4 beat divisor.")
+            raise Exception(
+                f"Hit object {hit_object} doesn't fall on a 1/4 beat divisor.")
 
 
-def partition_timing_points(timing_points, breaks):
-    if timing_points[0].is_inherited():
-        raise Exception("Invalid starting timing point.")
-
-    timing_point_sections = partition_entries(
-        timing_points, breaks, allowed_between_breaks=True)
-    for i, section in enumerate(timing_point_sections):
-        if len(section) == 0 or section[0].is_inherited():
-            # Make sure each section has a non-inherited timing point as the first entry.
-            previous_section = timing_point_sections[i - 1]
-            section.insert(0, previous_section[0])
-
-    millis_per_beat = timing_points[0].millis_per_beat
-    for section in timing_point_sections:
-        validate_timing_point_section(section, millis_per_beat)
-    return timing_point_sections
-
-
-def validate_timing_point_section(timing_points, millis_per_beat):
-    if timing_points[0].millis_per_beat != millis_per_beat:
-        raise Exception("Must be single bpm.")
-    if any(
-            i > 0 and not timing_point.is_inherited() for i, timing_point in enumerate(timing_points)):
-        raise Exception("Must be single bpm.")
+def starting_timing_point(timing_points, hit_objects):
+    # TODO.
+    return timing_points[0]
 
 
 def partition_hit_objects(hit_objects, breaks):
-    hit_object_sections = partition_entries(
-        hit_objects, breaks, allowed_between_breaks=False)
-    if any(len(section) == 0 for section in hit_object_sections):
-        raise Exception("Empty section between breaks.")
-    return hit_object_sections
-
-
-def partition_entries(entries, breaks, allowed_between_breaks):
     sections = list(map(lambda e: [], range(len(breaks) + 1)))
-    for entry in entries:
+    for entry in hit_objects:
         offset = entry.offset
-        # Find the correct section to place the entry.
+        # Find the correct section to place the object.
         section_index = len(sections) - 1
         for i, b in enumerate(breaks):
             if b[0] <= offset and offset <= b[1]:
-                if allowed_between_breaks:
-                    section_index = -1
-                    break
-                raise Exception("Timing entry located during break.")
+                raise Exception(f"Hit object {entry} located during break.")
             elif offset < b[0]:
                 section_index = i
                 break
-        if section_index != -1:
-            sections[section_index].append(entry)
+        sections[section_index].append(entry)
+    if any(len(section) == 0 for section in sections):
+        raise Exception("Empty section between breaks.")
     return sections
-
-
-def validate_mode(general_props):
-    if general_props["Mode"] != "0":
-        raise Exception("Not an osu standard beatmap.")
 
 
 def parse_hit_objects(f):
@@ -142,7 +100,17 @@ def parse_timing_points(f):
         offset = int(event[0])
         millis_per_beat = float(event[1])
         timing_points.append(TimingPoint(offset, millis_per_beat))
+    validate_timing_points(timing_points)
     return timing_points
+
+
+def validate_timing_points(timing_points):
+    if timing_points[0].is_inherited():
+        raise Exception("Invalid starting timing point.")
+    millis_per_beat = timing_points[0].millis_per_beat
+    if any(
+            tp.millis_per_beat != millis_per_beat and not tp.is_inherited() for tp in timing_points):
+        raise Exception("Must be single bpm.")
 
 
 def parse_breaks(f):
@@ -154,6 +122,26 @@ def parse_breaks(f):
             end = float(event[2])
             breaks.append((start, end))
     return breaks
+
+
+def parse_general(f, beatmap):
+    props = parse_section(f, "General")
+    if props["Mode"] != "0":
+        raise Exception("Not an osu standard beatmap.")
+    beatmap.audio_path = props["AudioFilename"]
+
+
+def parse_metadata(f, beatmap):
+    props = parse_section(f, "Metadata")
+    beatmap.id = props["BeatmapID"]
+
+
+def parse_difficulty(f, beatmap):
+    props = parse_section(f, "Difficulty")
+    beatmap.hp = float(props["HPDrainRate"])
+    beatmap.cs = float(props["CircleSize"])
+    beatmap.od = float(props["OverallDifficulty"])
+    beatmap.ar = float(props["ApproachRate"])
 
 
 def parse_section(f, target):

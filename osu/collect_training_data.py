@@ -54,17 +54,16 @@ def process_beatmapset(session, beatmapset, is_debug):
     retrieve_beatmapset(session, beatmapset, temp_dir, is_debug)
 
     # Process all the .osu files.
+    valid_beatmaps = []
     for file in os.listdir(temp_dir):
         if is_osu_file(file):
             full_path = os.path.join(temp_dir, file)
             try:
                 beatmap = Beatmap.from_osu_file(full_path)
+                valid_beatmaps.append(beatmap)
             except Exception as e:
                 # Beatmap doesn't meet training data criteria.
                 debug_print(f"Skipping beatmap: {e}", is_debug)
-                continue
-            print(beatmap.audio_path)
-            print(beatmap.id)
 
     # Finished. Remove the temporary directory.
     shutil.rmtree(temp_dir)
