@@ -10,7 +10,7 @@ from beatmap.beatmap import Beatmap
 
 OSU_SIGNIN_PAGE = "https://osu.ppy.sh/home"
 # Recently ranked beatmapsets with osu standard filter.
-BASE_SEARCH_URL = "https://osu.ppy.sh/beatmapsets/search?m=0"
+BASE_SEARCH_URL = "https://osu.ppy.sh/beatmapsets/search?m=0&s=ranked"
 OSU_STANDARD_MODE = 0
 LOGIN_FORM_TOKEN_PARAM = "_token"
 
@@ -41,19 +41,28 @@ def retrieve_beatmap_data(session, beatmapset_limit, is_debug):
         cursor_id = cursor_data["_id"]
 
         for beatmapset in data["beatmapsets"]:
-            process_beatmapset(session, beatmapset, is_debug)
-            count_beatmapsets_retrieved += 1
-            if count_beatmapsets_retrieved >= beatmapset_limit:
-                return
+            successful = process_beatmapset(session, beatmapset, is_debug)
+            if successful:
+                count_beatmapsets_retrieved += 1
+                if count_beatmapsets_retrieved >= beatmapset_limit:
+                    return
 
 
 def process_beatmapset(session, beatmapset, is_debug):
+    debug_print("======================================", is_debug)
     validate_beatmapset(beatmapset)
     # Download the beatmap and extract it to a temporary directory.
     temp_dir = "temp"
     retrieve_beatmapset(session, beatmapset, temp_dir, is_debug)
 
-    # Process all the .osu files.
+    successful = process_osu_folder(temp_dir, is_debug)
+
+    # Finished. Remove the temporary directory.
+    shutil.rmtree(temp_dir)
+    return successful
+
+
+def process_osu_folder(temp_dir, is_debug):
     valid_beatmaps = []
     for file in os.listdir(temp_dir):
         if is_osu_file(file):
@@ -63,15 +72,29 @@ def process_beatmapset(session, beatmapset, is_debug):
                 valid_beatmaps.append(beatmap)
             except Exception as e:
                 # Beatmap doesn't meet training data criteria.
-                debug_print(f"Skipping beatmap: {e}", is_debug)
+                debug_print(f"Skipping beatmap [{file}]: {e}", is_debug)
+    if len(valid_beatmaps) == 0:
+        debug_print("No valid beatmaps found, skipping beatmapset.", is_debug)
+        return False
 
-    # Finished. Remove the temporary directory.
-    shutil.rmtree(temp_dir)
+    audio_path = get_audio_path(valid_beatmaps, is_debug)
+    if not audio_path:
+        return False
+    print(audio_path)
+    return True
 
 
 def is_osu_file(file):
     _, ext = os.path.splitext(file)
     return ext.lower() == ".osu"
+
+
+def get_audio_path(beatmaps, is_debug):
+    audio_paths = set(map(lambda b: b.audio_path, beatmaps))
+    if len(audio_paths) != 1:
+        debug_print("Multiple audio paths found.", is_debug)
+        return None
+    return audio_paths.pop()
 
 
 def retrieve_beatmapset(session, beatmapset, out_dir, is_debug):

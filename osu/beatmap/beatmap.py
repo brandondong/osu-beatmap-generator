@@ -65,8 +65,11 @@ def process_section(timing_points, hit_objects):
 
 
 def starting_timing_point(timing_points, hit_objects):
-    # TODO.
-    return timing_points[0]
+    start = hit_objects[0].offset
+    for timing_point in reversed(timing_points):
+        if not timing_point.is_inherited() and timing_point.offset <= start:
+            return timing_point
+    raise Exception("Starting timing point not found.")
 
 
 def partition_hit_objects(hit_objects, breaks):
