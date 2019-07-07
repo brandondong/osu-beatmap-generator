@@ -1,5 +1,7 @@
 import configparser
 
+DIVISOR_LEEWAY = 1
+
 
 class Beatmap:
     @staticmethod
@@ -59,9 +61,10 @@ def process_section(timing_points, hit_objects):
             round(start + num_divisors_from_start * millis_per_beat_divisor))
         # The editor appears to always round down but we can remove that assumption by checking if within one millisecond.
         millis_diff = abs(predicted_offset - hit_object.offset)
-        if millis_diff > 1:
+        # There have also been unexplainable observed rounding errors. Add a leeway to compensate.
+        if millis_diff > 1 + DIVISOR_LEEWAY:
             raise Exception(
-                f"Hit object {hit_object} doesn't fall on a 1/4 beat divisor.")
+                f"Hit object {hit_object} doesn't fall on a 1/4 beat divisor, expected ~{predicted_offset}.")
 
 
 def starting_timing_point(timing_points, hit_objects):

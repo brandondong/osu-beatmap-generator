@@ -32,6 +32,12 @@ class TestBeatmap(unittest.TestCase):
         with self.assertRaises(Exception):
             Beatmap.from_osu_file(path)
 
+    def test_rounding_error(self):
+        path = os.path.join(TEST_BEATMAPS_DIR, "rounding_error.osu")
+        Beatmap.from_osu_file(path)
+        path = os.path.join(TEST_BEATMAPS_DIR, "rounding_error2.osu")
+        Beatmap.from_osu_file(path)
+
     def test_parse_wrong_mode(self):
         pass
 

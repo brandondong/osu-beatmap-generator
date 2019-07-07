@@ -50,19 +50,29 @@ def retrieve_beatmap_data(session, beatmapset_limit, is_debug):
 
 def process_beatmapset(session, beatmapset, is_debug):
     debug_print("======================================", is_debug)
+    # Check if we already have this beatmapset.
+    beatmapset_folder = training_folder(beatmapset)
+    if os.path.exists(beatmapset_folder):
+        beatmapset_id = beatmapset["id"]
+        debug_print(
+            f"Beatmapset {beatmapset_id} is already part of the training data.", is_debug)
+        return False
+    # Create the beatmapset training folder. Even if processing fails, we can use this as a marker to skip next time.
+    os.makedirs(beatmapset_folder)
+
     validate_beatmapset(beatmapset)
     # Download the beatmap and extract it to a temporary directory.
     temp_dir = "temp"
     retrieve_beatmapset(session, beatmapset, temp_dir, is_debug)
 
-    successful = process_osu_folder(temp_dir, is_debug)
+    successful = process_osu_folder(beatmapset, temp_dir, is_debug)
 
     # Finished. Remove the temporary directory.
     shutil.rmtree(temp_dir)
     return successful
 
 
-def process_osu_folder(temp_dir, is_debug):
+def process_osu_folder(beatmapset, temp_dir, is_debug):
     valid_beatmaps = []
     for file in os.listdir(temp_dir):
         if is_osu_file(file):
@@ -80,8 +90,13 @@ def process_osu_folder(temp_dir, is_debug):
     audio_path = get_audio_path(valid_beatmaps, is_debug)
     if not audio_path:
         return False
+    audio_path = os.path.join(temp_dir, audio_path)
     print(audio_path)
     return True
+
+
+def training_folder(beatmapset):
+    return os.path.join(TRAINING_PATH, str(beatmapset["id"]))
 
 
 def is_osu_file(file):
@@ -177,7 +192,6 @@ def debug_print(msg, is_debug):
 
 
 args = set_and_parse_args()
-os.makedirs(TRAINING_PATH, exist_ok=True)
 # Login to osu in order to be able to download beatmapsets.
 session = login_to_osu(args.username, args.password, args.debug)
 retrieve_beatmap_data(session, args.limit, args.debug)
