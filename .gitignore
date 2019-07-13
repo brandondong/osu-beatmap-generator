@@ -1,7 +1,6 @@
+ffmpeg.exe
 training_data/
 
 weights/
-
-ffmpeg/
 
 __pycache__/

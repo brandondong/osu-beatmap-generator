@@ -6,6 +6,7 @@ import zipfile
 
 import requests
 
+from audio.audio_preprocessor import AudioPreprocessor
 from beatmap.beatmap import Beatmap
 
 OSU_SIGNIN_PAGE = "https://osu.ppy.sh/home"
@@ -41,8 +42,8 @@ def retrieve_beatmap_data(session, beatmapset_limit, is_debug):
         cursor_id = cursor_data["_id"]
 
         for beatmapset in data["beatmapsets"]:
-            successful = process_beatmapset(session, beatmapset, is_debug)
-            if successful:
+            saved_new = process_beatmapset(session, beatmapset, is_debug)
+            if saved_new:
                 count_beatmapsets_retrieved += 1
                 if count_beatmapsets_retrieved >= beatmapset_limit:
                     return
@@ -50,39 +51,31 @@ def retrieve_beatmap_data(session, beatmapset_limit, is_debug):
 
 def process_beatmapset(session, beatmapset, is_debug):
     debug_print("======================================", is_debug)
+    validate_beatmapset(beatmapset)
     # Check if we already have this beatmapset.
-    beatmapset_folder = training_folder(beatmapset)
-    if os.path.exists(beatmapset_folder):
+    beatmapset_dir = training_folder(beatmapset)
+    if os.path.exists(beatmapset_dir):
         beatmapset_id = beatmapset["id"]
         debug_print(
             f"Beatmapset {beatmapset_id} is already part of the training data.", is_debug)
         return False
     # Create the beatmapset training folder. Even if processing fails, we can use this as a marker to skip next time.
-    os.makedirs(beatmapset_folder)
+    os.makedirs(beatmapset_dir)
 
-    validate_beatmapset(beatmapset)
     # Download the beatmap and extract it to a temporary directory.
     temp_dir = "temp"
     retrieve_beatmapset(session, beatmapset, temp_dir, is_debug)
 
-    successful = process_osu_folder(beatmapset, temp_dir, is_debug)
+    successful = process_osu_folder(
+        beatmapset, temp_dir, beatmapset_dir, is_debug)
 
     # Finished. Remove the temporary directory.
     shutil.rmtree(temp_dir)
     return successful
 
 
-def process_osu_folder(beatmapset, temp_dir, is_debug):
-    valid_beatmaps = []
-    for file in os.listdir(temp_dir):
-        if is_osu_file(file):
-            full_path = os.path.join(temp_dir, file)
-            try:
-                beatmap = Beatmap.from_osu_file(full_path)
-                valid_beatmaps.append(beatmap)
-            except Exception as e:
-                # Beatmap doesn't meet training data criteria.
-                debug_print(f"Skipping beatmap [{file}]: {e}", is_debug)
+def process_osu_folder(beatmapset, osu_dir, training_dir, is_debug):
+    valid_beatmaps = process_osu_files(osu_dir, is_debug)
     if len(valid_beatmaps) == 0:
         debug_print("No valid beatmaps found, skipping beatmapset.", is_debug)
         return False
@@ -90,9 +83,29 @@ def process_osu_folder(beatmapset, temp_dir, is_debug):
     audio_path = get_audio_path(valid_beatmaps, is_debug)
     if not audio_path:
         return False
-    audio_path = os.path.join(temp_dir, audio_path)
-    print(audio_path)
+    audio_path = os.path.join(osu_dir, audio_path)
+    try:
+        AudioPreprocessor.save_training_audio(audio_path, training_dir)
+    except Exception as e:
+        debug_print(f"Audio processing failed: {e}", is_debug)
+        return False
     return True
+
+
+def process_osu_files(osu_dir, is_debug):
+    valid_beatmaps = []
+    for file in os.listdir(osu_dir):
+        if is_osu_file(file):
+            full_path = os.path.join(osu_dir, file)
+            try:
+                beatmap = Beatmap.from_osu_file(full_path)
+                valid_beatmaps.append(beatmap)
+                debug_print(
+                    f"Processed beatmap [{file}] successfully.", is_debug)
+            except Exception as e:
+                # Beatmap doesn't meet training data criteria.
+                debug_print(f"Skipping beatmap [{file}]: {e}", is_debug)
+    return valid_beatmaps
 
 
 def training_folder(beatmapset):
@@ -121,10 +134,10 @@ def retrieve_beatmapset(session, beatmapset, out_dir, is_debug):
     temp_file = "temp.zip"
     with open(temp_file, "wb") as f:
         f.write(response.content)
-    debug_print(
-        "Download finished.", is_debug)
     with zipfile.ZipFile(temp_file, "r") as zip_ref:
         zip_ref.extractall(out_dir)
+    debug_print(
+        "Download finished.", is_debug)
     os.remove(temp_file)
 
 
@@ -134,6 +147,8 @@ def validate_beatmapset(beatmapset):
         beatmap["mode_int"] == OSU_STANDARD_MODE for beatmap in beatmapset["beatmaps"])
     if not contains_standard:
         raise Exception("osu standard filter failed.")
+    if beatmapset["ranked"] != 1:
+        raise Exception("Ranked search filter failed.")
 
 
 def set_and_parse_args():
