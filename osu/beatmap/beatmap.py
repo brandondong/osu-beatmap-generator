@@ -24,6 +24,24 @@ class Beatmap:
         return beatmap
 
 
+def process_section(timing_points, hit_objects):
+    starting_point = starting_timing_point(timing_points, hit_objects)
+    start = starting_point.offset
+    millis_per_beat_divisor = starting_point.millis_per_beat / 4
+    for hit_object in hit_objects:
+        time_since_start = hit_object.offset - start
+        num_divisors_from_start = int(
+            round(time_since_start / millis_per_beat_divisor))
+        predicted_offset = int(
+            round(start + num_divisors_from_start * millis_per_beat_divisor))
+        # The editor appears to always round down but we can remove that assumption by checking if within one millisecond.
+        millis_diff = abs(predicted_offset - hit_object.offset)
+        # There have also been unexplainable observed rounding errors. Add a leeway to compensate.
+        if millis_diff > 1 + DIVISOR_LEEWAY:
+            raise Exception(
+                f"Hit object {hit_object} doesn't fall on a 1/4 beat divisor, expected ~{predicted_offset}.")
+
+
 class HitObject:
     def __init__(self, x, y, offset):
         self.x = x
@@ -47,24 +65,6 @@ class TimingPoint:
 
     def __str__(self):
         return f"[{self.offset}, {self.millis_per_beat}]"
-
-
-def process_section(timing_points, hit_objects):
-    starting_point = starting_timing_point(timing_points, hit_objects)
-    start = starting_point.offset
-    millis_per_beat_divisor = starting_point.millis_per_beat / 4
-    for hit_object in hit_objects:
-        time_since_start = hit_object.offset - start
-        num_divisors_from_start = int(
-            round(time_since_start / millis_per_beat_divisor))
-        predicted_offset = int(
-            round(start + num_divisors_from_start * millis_per_beat_divisor))
-        # The editor appears to always round down but we can remove that assumption by checking if within one millisecond.
-        millis_diff = abs(predicted_offset - hit_object.offset)
-        # There have also been unexplainable observed rounding errors. Add a leeway to compensate.
-        if millis_diff > 1 + DIVISOR_LEEWAY:
-            raise Exception(
-                f"Hit object {hit_object} doesn't fall on a 1/4 beat divisor, expected ~{predicted_offset}.")
 
 
 def starting_timing_point(timing_points, hit_objects):

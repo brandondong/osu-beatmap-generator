@@ -84,6 +84,7 @@ def process_osu_folder(beatmapset, osu_dir, training_dir, is_debug):
     if not audio_path:
         return False
     audio_path = os.path.join(osu_dir, audio_path)
+    debug_print("Processing audio.", is_debug)
     try:
         AudioPreprocessor.save_training_audio(audio_path, training_dir)
     except Exception as e:
