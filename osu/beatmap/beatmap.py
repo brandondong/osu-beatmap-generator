@@ -139,7 +139,7 @@ def parse_general(f, beatmap):
 
 def parse_metadata(f, beatmap):
     props = parse_section(f, "Metadata")
-    beatmap.id = props["BeatmapID"]
+    beatmap.id = int(props["BeatmapID"])
 
 
 def parse_difficulty(f, beatmap):
