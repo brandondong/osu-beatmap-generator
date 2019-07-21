@@ -1,5 +1,6 @@
 import argparse
 from html.parser import HTMLParser
+import logging
 import os
 import shutil
 import zipfile
@@ -19,7 +20,7 @@ LOGIN_FORM_TOKEN_PARAM = "_token"
 TRAINING_PATH = "training_data"
 
 
-def retrieve_beatmap_data(session, beatmapset_limit, is_debug):
+def retrieve_beatmap_data(session, beatmapset_limit, logger):
     if beatmapset_limit <= 0:
         return
     count_beatmapsets_retrieved = 0
@@ -34,7 +35,7 @@ def retrieve_beatmap_data(session, beatmapset_limit, is_debug):
         else:
             request_url = BASE_SEARCH_URL
 
-        debug_print(f"Retrieving listing: {request_url}.", is_debug)
+        logger.debug(f"Retrieving listing: {request_url}.")
         data = session.get(request_url).json()
 
         # Extract cursor data for the next request.
@@ -43,60 +44,61 @@ def retrieve_beatmap_data(session, beatmapset_limit, is_debug):
         cursor_id = cursor_data["_id"]
 
         for beatmapset in data["beatmapsets"]:
-            saved_new = process_beatmapset(session, beatmapset, is_debug)
+            saved_new = process_beatmapset(session, beatmapset, logger)
             if saved_new:
                 count_beatmapsets_retrieved += 1
                 if count_beatmapsets_retrieved >= beatmapset_limit:
                     return
 
 
-def process_beatmapset(session, beatmapset, is_debug):
-    debug_print("======================================", is_debug)
+def process_beatmapset(session, beatmapset, logger):
+    logger.debug("======================================")
     validate_beatmapset(beatmapset)
     # Check if we already have this beatmapset.
     beatmapset_dir = training_folder(beatmapset)
     if os.path.exists(beatmapset_dir):
         beatmapset_id = beatmapset["id"]
-        debug_print(
-            f"Beatmapset {beatmapset_id} is already part of the training data.", is_debug)
+        logger.debug(
+            f"Beatmapset {beatmapset_id} is already part of the training data.")
         return False
     # Create the beatmapset training folder. Even if processing fails, we can use this as a marker to skip next time.
     os.makedirs(beatmapset_dir)
 
     # Download the beatmap and extract it to a temporary directory.
     temp_dir = "temp"
-    retrieve_beatmapset(session, beatmapset, temp_dir, is_debug)
+    retrieve_beatmapset(session, beatmapset, temp_dir, logger)
 
     successful = process_osu_folder(
-        beatmapset, temp_dir, beatmapset_dir, is_debug)
+        beatmapset, temp_dir, beatmapset_dir, logger)
 
     # Finished. Remove the temporary directory.
     shutil.rmtree(temp_dir)
     return successful
 
 
-def process_osu_folder(beatmapset, osu_dir, training_dir, is_debug):
-    beatmap_infos = process_osu_files(osu_dir, is_debug)
+def process_osu_folder(beatmapset, osu_dir, training_dir, logger):
+    beatmap_infos = process_osu_files(osu_dir, logger)
     if len(beatmap_infos) == 0:
-        debug_print("No valid beatmaps found, skipping beatmapset.", is_debug)
+        logger.debug("No valid beatmaps found, skipping beatmapset.")
         return False
 
-    audio_path = get_audio_path(beatmap_infos, osu_dir, is_debug)
+    audio_path = get_audio_path(beatmap_infos, osu_dir, logger)
     if not audio_path:
         return False
-    debug_print("Processing audio.", is_debug)
+    logger.debug("Processing audio.")
     try:
         AudioPreprocessor.save_training_audio(audio_path, training_dir)
     except Exception as e:
-        debug_print(f"Audio processing failed: {e}", is_debug)
+        logger.debug(f"Audio processing failed: {e}")
         return False
 
     copy_osu_files(beatmap_infos, training_dir)
     save_difficulty_info(beatmapset, beatmap_infos, training_dir)
+    logger.debug("New beatmapset saved successfully.")
     return True
 
 
-def process_osu_files(osu_dir, is_debug):
+def process_osu_files(osu_dir, logger):
     beatmap_infos = []
     for file in os.listdir(osu_dir):
         if is_osu_file(file):
@@ -104,11 +106,11 @@ def process_osu_files(osu_dir, is_debug):
             try:
                 beatmap = Beatmap.from_osu_file(full_path)
                 beatmap_infos.append((beatmap, full_path))
-                debug_print(
-                    f"Processed beatmap [{file}] successfully.", is_debug)
+                logger.debug(
+                    f"Processed beatmap [{file}] successfully.")
             except Exception as e:
                 # Beatmap doesn't meet training data criteria.
-                debug_print(f"Skipping beatmap [{file}]: {e}", is_debug)
+                logger.debug(f"Skipping beatmap [{file}]: {e}")
     return beatmap_infos
 
 
@@ -140,27 +142,27 @@ def is_osu_file(file):
     return ext.lower() == ".osu"
 
 
-def get_audio_path(beatmap_infos, osu_dir, is_debug):
+def get_audio_path(beatmap_infos, osu_dir, logger):
     audio_paths = set(map(lambda b: b[0].audio_path, beatmap_infos))
     if len(audio_paths) != 1:
-        debug_print("Multiple audio paths found.", is_debug)
+        logger.debug("Multiple audio paths found.")
         return None
     return os.path.join(osu_dir, audio_paths.pop())
 
 
-def retrieve_beatmapset(session, beatmapset, out_dir, is_debug):
+def retrieve_beatmapset(session, beatmapset, out_dir, logger):
     beatmapset_id = beatmapset["id"]
     beatmapset_download_link = f"https://osu.ppy.sh/beatmapsets/{beatmapset_id}/download?noVideo=1"
-    debug_print(
-        f"Retrieving beatmapset: {beatmapset_download_link}.", is_debug)
+    logger.debug(
+        f"Retrieving beatmapset: {beatmapset_download_link}.")
     response = session.get(beatmapset_download_link)
     temp_file = "temp.zip"
     with open(temp_file, "wb") as f:
         f.write(response.content)
     with zipfile.ZipFile(temp_file, "r") as zip_ref:
         zip_ref.extractall(out_dir)
-    debug_print(
-        "Download finished.", is_debug)
+    logger.debug(
+        "Download finished.")
     os.remove(temp_file)
 
 
@@ -175,17 +177,18 @@ def validate_beatmapset(beatmapset):
 
 
 def set_and_parse_args():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("username", help="osu username")
     parser.add_argument("password", help="osu password")
-    parser.add_argument("--limit", help="maximum number of beatmapsets to retrieve (default 1000)",
+    parser.add_argument("--limit", help="maximum number of beatmapsets to retrieve",
                         type=int, default=1000)
     parser.add_argument(
         "-d", "--debug", help="output debug information", action="store_true")
     return parser.parse_args()
 
 
-def login_to_osu(username, password, is_debug):
+def login_to_osu(username, password, logger):
     session = requests.session()
     html = session.get(OSU_SIGNIN_PAGE).text
     parser = OsuHomeParser()
@@ -195,7 +198,7 @@ def login_to_osu(username, password, is_debug):
     response = session.request(parser.method, parser.url, params)
     if response.status_code >= 400:
         raise Exception(f"Failed to login for user={username}.")
-    debug_print(f"Successfully logged in for user={username}.", is_debug)
+    logger.debug(f"Successfully logged in for user={username}.")
     return session
 
 
@@ -224,12 +227,17 @@ class OsuHomeParser(HTMLParser):
                 self.found_token = True
 
 
-def debug_print(msg, is_debug):
-    if is_debug:
-        print(msg)
+def create_logger(debug):
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG if debug else logging.WARNING)
+    # Output to console.
+    handler = logging.StreamHandler()
+    logger.addHandler(handler)
+    return logger
 
 
 args = set_and_parse_args()
+logger = create_logger(args.debug)
 # Login to osu in order to be able to download beatmapsets.
-session = login_to_osu(args.username, args.password, args.debug)
-retrieve_beatmap_data(session, args.limit, args.debug)
+session = login_to_osu(args.username, args.password, logger)
+retrieve_beatmap_data(session, args.limit, logger)

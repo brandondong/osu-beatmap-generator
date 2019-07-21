@@ -39,7 +39,12 @@ class TestBeatmap(unittest.TestCase):
         Beatmap.from_osu_file(path)
 
     def test_parse_wrong_mode(self):
-        pass
+        path = os.path.join(TEST_BEATMAPS_DIR, "taiko.osu")
+        with self.assertRaises(Exception):
+            Beatmap.from_osu_file(path)
 
-    def test_parse_invalid_beatmap(self):
-        pass
+    def test_parse_wrong_divisor(self):
+        # Missing beatmpa id.
+        path = os.path.join(TEST_BEATMAPS_DIR, "old_format.osu")
+        with self.assertRaises(Exception):
+            Beatmap.from_osu_file(path)
