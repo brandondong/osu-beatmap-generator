@@ -19,27 +19,40 @@ class Beatmap:
             # Split hit objects into sections separated by the breaks.
             hit_objects_sections = partition_hit_objects(hit_objects, breaks)
             for i in range(len(hit_objects_sections)):
-                process_section(
-                    timing_points, hit_objects_sections[i])
+                process_section(beatmap, timing_points,
+                                hit_objects_sections[i])
         return beatmap
 
 
-def process_section(timing_points, hit_objects):
+def process_section(beatmap, timing_points, hit_objects):
     starting_point = starting_timing_point(timing_points, hit_objects)
     start = starting_point.offset
     millis_per_beat_divisor = starting_point.millis_per_beat / 4
-    for hit_object in hit_objects:
-        time_since_start = hit_object.offset - start
-        num_divisors_from_start = int(
-            round(time_since_start / millis_per_beat_divisor))
+
+    first_hit_object = hit_objects[0]
+    time_since_start = first_hit_object.offset - start
+    num_divisors_from_start = int(
+        round(time_since_start / millis_per_beat_divisor))
+
+    # Fill a list with what is happening on each beat divisor
+    divisors = []
+    current_hit_object_index = 0
+    while current_hit_object_index < len(hit_objects):
+        hit_object = hit_objects[current_hit_object_index]
         predicted_offset = int(
             round(start + num_divisors_from_start * millis_per_beat_divisor))
-        # The editor appears to always round down but we can remove that assumption by checking if within one millisecond.
         millis_diff = abs(predicted_offset - hit_object.offset)
+        # The editor appears to always round down but we can remove that assumption by checking if within one millisecond.
         # There have also been unexplainable observed rounding errors. Add a leeway to compensate.
-        if millis_diff > 1 + DIVISOR_LEEWAY:
+        if millis_diff <= 1 + DIVISOR_LEEWAY:
+            divisors.append(hit_object)
+            current_hit_object_index += 1
+        elif hit_object.offset < predicted_offset:
             raise Exception(
                 f"Hit object {hit_object} doesn't fall on a 1/4 beat divisor, expected ~{predicted_offset}.")
+        else:
+            divisors.append(None)
+        num_divisors_from_start += 1
 
 
 class HitObject:
@@ -49,10 +62,9 @@ class HitObject:
         self.offset = offset
 
     def __str__(self):
-        minutes_decimal = self.offset / 1000 / 60
-        minutes = int(minutes_decimal)
-        seconds = (minutes_decimal - minutes) * 60
-        return f"[offset={self.offset} ({minutes}:{seconds:.3f})]"
+        minutes = int(self.offset / 1000 / 60)
+        millis = self.offset % (1000 * 60)
+        return f"[offset={self.offset} ({minutes}:{millis/1000:.3f})]"
 
 
 class TimingPoint:

@@ -7,9 +7,9 @@ import zipfile
 
 import requests
 
-from audio.audio_preprocessor import AudioPreprocessor
-from difficulty.difficulty_properties import DifficultyProperties
-from beatmap.beatmap import Beatmap
+from osu.audio.audio_preprocessor import AudioPreprocessor
+from osu.beatmap.beatmap import Beatmap
+from osu.difficulty.difficulty_properties import DifficultyProperties
 
 OSU_SIGNIN_PAGE = "https://osu.ppy.sh/home"
 # Recently ranked beatmapsets with osu standard filter.
@@ -17,7 +17,7 @@ BASE_SEARCH_URL = "https://osu.ppy.sh/beatmapsets/search?m=0&s=ranked"
 OSU_STANDARD_MODE = 0
 LOGIN_FORM_TOKEN_PARAM = "_token"
 
-TRAINING_PATH = "training_data"
+TRAINING_PATH = "osu/training_data"
 
 
 def retrieve_beatmap_data(session, beatmapset_limit, logger):

@@ -1,9 +1,9 @@
 import os
 import unittest
 
-from beatmap.beatmap import Beatmap
+from osu.beatmap.beatmap import Beatmap
 
-TEST_BEATMAPS_DIR = "../tests/resources/beatmaps/"
+TEST_BEATMAPS_DIR = "osu/tests/resources/beatmaps/"
 
 
 class TestBeatmap(unittest.TestCase):

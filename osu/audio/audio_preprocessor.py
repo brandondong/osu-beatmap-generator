@@ -1,9 +1,9 @@
 import os
 import subprocess
 
-FFMPEG_PATH = "audio/ffmpeg.exe"
-BEATROOT_JAR_PATH = "audio/beatroot.jar"
-OUTPUT_FILE = "audio.csv"
+FFMPEG_PATH = "osu/audio/ffmpeg.exe"
+BEATROOT_JAR_PATH = "osu/audio/beatroot.jar"
+OUTPUT_FILE_NAME = "audio.csv"
 
 
 class AudioPreprocessor:
@@ -15,7 +15,7 @@ class AudioPreprocessor:
         if not os.path.exists(output_wav):
             raise Exception("MP3 -> WAV conversion failed.")
 
-        output_csv = os.path.join(output_dir, OUTPUT_FILE)
+        output_csv = os.path.join(output_dir, OUTPUT_FILE_NAME)
         subprocess.run(["java", "-cp", BEATROOT_JAR_PATH,
                         "at.ofai.music.beatroot.BeatRoot", "-O", "-o", output_csv, output_wav], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         os.remove(output_wav)

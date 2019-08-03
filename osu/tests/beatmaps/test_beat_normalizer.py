@@ -4,9 +4,9 @@ import unittest
 
 import numpy as np
 
-from beatmap import beat_normalizer
+from osu.beatmap import beat_normalizer
 
-TEST_BEAT_DATA_DIR = "../tests/resources/beat_data/"
+TEST_BEAT_DATA_DIR = "osu/tests/resources/beat_data/"
 
 
 class TestBeatNormalizer(unittest.TestCase):
