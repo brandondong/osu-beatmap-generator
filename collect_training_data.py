@@ -3,6 +3,7 @@ from html.parser import HTMLParser
 import logging
 import os
 import shutil
+import signal
 import zipfile
 
 import requests
@@ -20,7 +21,7 @@ LOGIN_FORM_TOKEN_PARAM = "_token"
 TRAINING_PATH = "osu/training_data"
 
 
-def retrieve_beatmap_data(session, beatmapset_limit, logger):
+def retrieve_beatmap_data(session, beatmapset_limit, logger, sigint_catcher):
     if beatmapset_limit <= 0:
         return
     count_beatmapsets_retrieved = 0
@@ -44,6 +45,10 @@ def retrieve_beatmap_data(session, beatmapset_limit, logger):
         cursor_id = cursor_data["_id"]
 
         for beatmapset in data["beatmapsets"]:
+            if sigint_catcher.caught_sigint:
+                logger.debug("Caught SIGINT. Terminating gracefully.")
+                return
+
             saved_new = process_beatmapset(session, beatmapset, logger)
             if saved_new:
                 count_beatmapsets_retrieved += 1
@@ -236,8 +241,20 @@ def create_logger(debug):
     return logger
 
 
+class SigintCatcher():
+    def __init__(self):
+        self.caught_sigint = False
+
+    def handle_sigint(self, *args):
+        self.caught_sigint = True
+
+
 args = set_and_parse_args()
 logger = create_logger(args.debug)
 # Login to osu in order to be able to download beatmapsets.
 session = login_to_osu(args.username, args.password, logger)
-retrieve_beatmap_data(session, args.limit, logger)
+
+# Set up a handler for SIGINT so the process can terminate gracefully.
+sigint_catcher = SigintCatcher()
+signal.signal(signal.SIGINT, sigint_catcher.handle_sigint)
+retrieve_beatmap_data(session, args.limit, logger, sigint_catcher)

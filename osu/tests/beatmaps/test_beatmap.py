@@ -48,3 +48,8 @@ class TestBeatmap(unittest.TestCase):
         path = os.path.join(TEST_BEATMAPS_DIR, "old_format.osu")
         with self.assertRaises(Exception):
             Beatmap.from_osu_file(path)
+
+    def test_late_starting_timing_point(self):
+        path = os.path.join(TEST_BEATMAPS_DIR,
+                            "late_starting_timing_point.osu")
+        Beatmap.from_osu_file(path)
