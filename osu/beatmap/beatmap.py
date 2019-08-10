@@ -4,6 +4,12 @@ DIVISOR_LEEWAY = 1
 
 
 class Beatmap:
+    def __init__(self):
+        self._divisor_sections = []
+
+    def get_timeseries_training_data(self, onsets):
+        return None, None
+
     @staticmethod
     def from_osu_file(path):
         beatmap = Beatmap()
@@ -18,41 +24,42 @@ class Beatmap:
 
             # Split hit objects into sections separated by the breaks.
             hit_objects_sections = partition_hit_objects(hit_objects, breaks)
-            for i in range(len(hit_objects_sections)):
-                process_section(beatmap, timing_points,
-                                hit_objects_sections[i])
+            for hit_objects_section in hit_objects_sections:
+                beatmap._divisor_sections.append(DivisorSection(
+                    timing_points, hit_objects_section))
         return beatmap
 
 
-def process_section(beatmap, timing_points, hit_objects):
-    starting_point = starting_timing_point(timing_points, hit_objects)
-    start = starting_point.offset
-    millis_per_beat_divisor = starting_point.millis_per_beat / 4
+class DivisorSection:
+    def __init__(self, timing_points, hit_objects):
+        starting_point = starting_timing_point(timing_points, hit_objects)
+        start = starting_point.offset
+        millis_per_beat_divisor = starting_point.millis_per_beat / 4
 
-    first_hit_object = hit_objects[0]
-    time_since_start = first_hit_object.offset - start
-    num_divisors_from_start = int(
-        round(time_since_start / millis_per_beat_divisor))
+        first_hit_object = hit_objects[0]
+        time_since_start = first_hit_object.offset - start
+        num_divisors_from_start = int(
+            round(time_since_start / millis_per_beat_divisor))
 
-    # Fill a list with what is happening on each beat divisor
-    divisors = []
-    current_hit_object_index = 0
-    while current_hit_object_index < len(hit_objects):
-        hit_object = hit_objects[current_hit_object_index]
-        predicted_offset = int(
-            round(start + num_divisors_from_start * millis_per_beat_divisor))
-        millis_diff = abs(predicted_offset - hit_object.offset)
-        # The editor appears to always round down but we can remove that assumption by checking if within one millisecond.
-        # There have also been unexplainable observed rounding errors. Add a leeway to compensate.
-        if millis_diff <= 1 + DIVISOR_LEEWAY:
-            divisors.append(hit_object)
-            current_hit_object_index += 1
-        elif hit_object.offset < predicted_offset:
-            raise Exception(
-                f"Hit object {hit_object} doesn't fall on a 1/4 beat divisor, expected ~{predicted_offset}.")
-        else:
-            divisors.append(None)
-        num_divisors_from_start += 1
+        # Fill a list with what is happening on each beat divisor
+        divisors = []
+        current_hit_object_index = 0
+        while current_hit_object_index < len(hit_objects):
+            hit_object = hit_objects[current_hit_object_index]
+            predicted_offset = int(
+                round(start + num_divisors_from_start * millis_per_beat_divisor))
+            millis_diff = abs(predicted_offset - hit_object.offset)
+            # The editor appears to always round down but we can remove that assumption by checking if within one millisecond.
+            # There have also been unexplainable observed rounding errors. Add a leeway to compensate.
+            if millis_diff <= 1 + DIVISOR_LEEWAY:
+                divisors.append(hit_object)
+                current_hit_object_index += 1
+            elif hit_object.offset < predicted_offset:
+                raise Exception(
+                    f"Hit object {hit_object} doesn't fall on a 1/4 beat divisor, expected ~{predicted_offset}.")
+            else:
+                divisors.append(None)
+            num_divisors_from_start += 1
 
 
 class HitObject:

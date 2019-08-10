@@ -11,14 +11,13 @@ import requests
 from osu.audio.audio_preprocessor import AudioPreprocessor
 from osu.beatmap.beatmap import Beatmap
 from osu.difficulty.difficulty_properties import DifficultyProperties
+from osu.training.utils import is_osu_file, training_path
 
 OSU_SIGNIN_PAGE = "https://osu.ppy.sh/home"
 # Recently ranked beatmapsets with osu standard filter.
 BASE_SEARCH_URL = "https://osu.ppy.sh/beatmapsets/search?m=0&s=ranked"
 OSU_STANDARD_MODE = 0
 LOGIN_FORM_TOKEN_PARAM = "_token"
-
-TRAINING_PATH = "osu/training_data"
 
 
 def retrieve_beatmap_data(session, beatmapset_limit, logger, sigint_catcher):
@@ -139,12 +138,7 @@ def copy_osu_files(beatmap_infos, training_dir):
 
 
 def training_folder(beatmapset):
-    return os.path.join(TRAINING_PATH, str(beatmapset["id"]))
-
-
-def is_osu_file(file):
-    _, ext = os.path.splitext(file)
-    return ext.lower() == ".osu"
+    return training_path(str(beatmapset["id"]))
 
 
 def get_audio_path(beatmap_infos, osu_dir, logger):
