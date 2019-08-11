@@ -1,5 +1,8 @@
 import configparser
 
+from osu.beatmap.hit_object import HitObject
+
+DEFAULT_SLIDER_MULTIPLIER = 1.4
 DIVISOR_LEEWAY = 1
 
 
@@ -7,20 +10,17 @@ class Beatmap:
     def __init__(self):
         self._divisor_sections = []
 
-    def get_timeseries_training_data(self, onsets):
-        return None, None
-
     @staticmethod
     def from_osu_file(path):
         beatmap = Beatmap()
         with open(path, "r", encoding="utf-8") as f:
             parse_general(f, beatmap)
             parse_metadata(f, beatmap)
-            parse_difficulty(f, beatmap)
+            slider_multiplier = parse_difficulty(f, beatmap)
 
             breaks = parse_breaks(f)
             timing_points = parse_timing_points(f)
-            hit_objects = parse_hit_objects(f)
+            hit_objects = parse_hit_objects(f, slider_multiplier)
 
             # Split hit objects into sections separated by the breaks.
             hit_objects_sections = partition_hit_objects(hit_objects, breaks)
@@ -28,6 +28,16 @@ class Beatmap:
                 beatmap._divisor_sections.append(DivisorSection(
                     timing_points, hit_objects_section))
         return beatmap
+
+    def get_timeseries_training_data(self, onsets):
+        timeseries_inputs = []
+        labels = []
+        for divisor_section in self._divisor_sections:
+            timeseries, label_vec = divisor_section.get_timeseries_training_data(
+                onsets)
+            timeseries_inputs.append(timeseries)
+            labels.append(label_vec)
+        return timeseries_inputs, labels
 
 
 class DivisorSection:
@@ -61,23 +71,15 @@ class DivisorSection:
                 divisors.append(None)
             num_divisors_from_start += 1
 
-
-class HitObject:
-    def __init__(self, x, y, offset):
-        self.x = x
-        self.y = y
-        self.offset = offset
-
-    def __str__(self):
-        minutes = int(self.offset / 1000 / 60)
-        millis = self.offset % (1000 * 60)
-        return f"[offset={self.offset} ({minutes}:{millis/1000:.3f})]"
+    def get_timeseries_training_data(self, onsets):
+        return None, None
 
 
 class TimingPoint:
-    def __init__(self, offset, millis_per_beat):
-        self.offset = offset
-        self.millis_per_beat = millis_per_beat
+    def __init__(self, config_line):
+        event = config_line.split(",")
+        self.offset = int(event[0])
+        self.millis_per_beat = float(event[1])
 
     def is_inherited(self):
         return self.millis_per_beat < 0
@@ -112,19 +114,16 @@ def partition_hit_objects(hit_objects, breaks):
     return sections
 
 
-def parse_hit_objects(f):
-    entries = read_list_section(
-        f, "HitObjects", max_split=5, last_section=True)
-    return list(map(lambda e: HitObject(int(e[0]), int(e[1]), int(e[2])), entries))
+def parse_hit_objects(f, slider_multiplier):
+    entries = read_list_section(f, "HitObjects", last_section=True)
+    return list(map(lambda e: HitObject.from_config_line(e, slider_multiplier), entries))
 
 
 def parse_timing_points(f):
     timing_points = []
-    events = read_list_section(f, "TimingPoints")
-    for event in events:
-        offset = int(event[0])
-        millis_per_beat = float(event[1])
-        timing_points.append(TimingPoint(offset, millis_per_beat))
+    event_lines = read_list_section(f, "TimingPoints")
+    for event_line in event_lines:
+        timing_points.append(TimingPoint(event_line))
     validate_timing_points(timing_points)
     return timing_points
 
@@ -140,8 +139,9 @@ def validate_timing_points(timing_points):
 
 def parse_breaks(f):
     breaks = []
-    events = read_list_section(f, "Events")
-    for event in events:
+    event_lines = read_list_section(f, "Events")
+    for event_line in event_lines:
+        event = event_line.split(",")
         if event[0] == "2":
             start = float(event[1])
             end = float(event[2])
@@ -167,6 +167,8 @@ def parse_difficulty(f, beatmap):
     beatmap.cs = float(props["CircleSize"])
     beatmap.od = float(props["OverallDifficulty"])
     beatmap.ar = float(props["ApproachRate"])
+    slider_multiplier = props.get("SliderMultiplier")
+    return DEFAULT_SLIDER_MULTIPLIER if slider_multiplier is None else float(slider_multiplier)
 
 
 def parse_section(f, target):
@@ -186,7 +188,7 @@ def parse_section(f, target):
     return config[dummy_key]
 
 
-def read_list_section(f, target, max_split=-1, last_section=False):
+def read_list_section(f, target, last_section=False):
     seek_until_target_section_passed(f, target)
     entries = []
     while True:
@@ -199,7 +201,7 @@ def read_list_section(f, target, max_split=-1, last_section=False):
         if line == "\n":
             return entries
         elif not line.startswith("//"):
-            entries.append(line[:-1].split(",", max_split))
+            entries.append(line[:-1])
 
 
 def seek_until_target_section_passed(f, target):
