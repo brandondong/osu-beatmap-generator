@@ -182,8 +182,8 @@ def set_and_parse_args():
     parser.add_argument("password", help="osu password")
     parser.add_argument("--limit", help="maximum number of beatmapsets to retrieve",
                         type=int, default=1000)
-    parser.add_argument(
-        "-d", "--debug", help="output debug information", action="store_true")
+    parser.add_argument("--quiet", help="hide debug output",
+                        action="store_true")
     return parser.parse_args()
 
 
@@ -226,9 +226,9 @@ class OsuHomeParser(HTMLParser):
                 self.found_token = True
 
 
-def create_logger(debug):
+def create_logger(hide_debug):
     logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG if debug else logging.WARNING)
+    logger.setLevel(logging.WARNING if hide_debug else logging.DEBUG)
     # Output to console.
     handler = logging.StreamHandler()
     logger.addHandler(handler)
@@ -244,7 +244,7 @@ class SigintCatcher():
 
 
 args = set_and_parse_args()
-logger = create_logger(args.debug)
+logger = create_logger(args.quiet)
 # Login to osu in order to be able to download beatmapsets.
 session = login_to_osu(args.username, args.password, logger)
 

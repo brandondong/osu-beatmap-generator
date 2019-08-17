@@ -18,5 +18,4 @@ for beatmapset in os.listdir(training_folder):
             if is_osu_file(file):
                 osu_file = os.path.join(beatmapset_path, file)
                 beatmap = Beatmap.from_osu_file(osu_file)
-                timeseries_inputs, labels = beatmap.get_timeseries_training_data(
-                    onsets)
+                labels = beatmap.get_training_labels()

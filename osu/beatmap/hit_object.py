@@ -3,12 +3,12 @@ class HitObject:
         self.offset = offset
 
     def __str__(self):
-        minutes = int(self.offset / 1000 / 60)
+        minutes = int(self.offset / (1000 * 60))
         millis = self.offset % (1000 * 60)
         return f"[offset={self.offset} ({minutes}:{millis/1000:.3f})]"
 
     @staticmethod
-    def from_config_line(line, slider_multiplier):
+    def from_config_line(line):
         s = line.split(",")
         x = int(s[0])
         y = int(s[1])
@@ -29,7 +29,7 @@ class HitCircle(HitObject):
         self.x = x
         self.y = y
 
-    def get_duration(self):
+    def get_duration(self, beat_duration, slider_multiplier):
         return 0
 
 
@@ -39,7 +39,7 @@ class Slider(HitObject):
         self.x = x
         self.y = y
 
-    def get_duration(self):
+    def get_duration(self, beat_duration, slider_multiplier):
         # TODO.
         return 0
 
@@ -49,7 +49,7 @@ class Spinner(HitObject):
         super().__init__(offset)
         self.end_time = end_time
 
-    def get_duration(self):
+    def get_duration(self, beat_duration, slider_multiplier):
         return self.end_time - self.offset
 
 
