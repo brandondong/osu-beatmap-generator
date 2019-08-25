@@ -9,7 +9,7 @@ class TimingPoint:
 
     def get_beat_duration(self, millis_per_beat):
         if self.is_inherited():
-            return self.millis_per_beat * -1 * millis_per_beat
+            return self.millis_per_beat * millis_per_beat / -100
         return self.millis_per_beat
 
     def __str__(self):
