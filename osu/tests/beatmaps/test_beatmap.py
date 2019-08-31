@@ -27,10 +27,25 @@ class TestBeatmap(unittest.TestCase):
                 (HitObjectType.SLIDER, 8),
                 (HitObjectType.SILENCE, 4),
                 (HitObjectType.HIT_CIRCLE, 1),
-                (HitObjectType.SILENCE, 3)
+                (HitObjectType.SILENCE, 3),
+                (HitObjectType.SLIDER, 8),
+                (HitObjectType.SILENCE, 4),
+                (HitObjectType.HIT_CIRCLE, 1),
+                (HitObjectType.SILENCE, 3),
+                (HitObjectType.SLIDER, 8),
+                (HitObjectType.SILENCE, 4),
+                (HitObjectType.HIT_CIRCLE, 1),
+                (HitObjectType.SILENCE, 3),
+                (HitObjectType.SLIDER, 8),
+                (HitObjectType.SILENCE, 8),
+                (HitObjectType.SLIDER, 4),
+                (HitObjectType.SILENCE, 4)
             ], labels)
-        self.assertEqual(HitObjectType.HIT_CIRCLE.value, labels[-1])
-        self.assertEqual(HitObjectType.SILENCE.value, labels[-2])
+        self.assert_expected_labels(
+            [
+                (HitObjectType.HIT_CIRCLE, 1),
+                (HitObjectType.SILENCE, 4)
+            ], labels, from_ending=True)
         self.assertEqual(573, len(labels))
 
     def test_parse_breaks(self):
@@ -45,6 +60,31 @@ class TestBeatmap(unittest.TestCase):
         self.assertAlmostEqual(2, beatmap.ar)
         training_labels = beatmap.get_training_labels()
         self.assertEqual(2, len(training_labels))
+        labels = training_labels[0]
+        self.assert_expected_labels(
+            [
+                (HitObjectType.SLIDER, 32),
+                (HitObjectType.SILENCE, 16)
+            ], labels)
+        self.assert_expected_labels(
+            [
+                (HitObjectType.SPINNER, 32),
+                (HitObjectType.SILENCE, 7),
+                (HitObjectType.HIT_CIRCLE, 1)
+            ], labels, from_ending=True)
+        labels = training_labels[1]
+        self.assert_expected_labels(
+            [
+                (HitObjectType.SLIDER, 32),
+                (HitObjectType.SILENCE, 16)
+            ], labels)
+        self.assert_expected_labels(
+            [
+                (HitObjectType.SPINNER, 32),
+                (HitObjectType.SILENCE, 7),
+                (HitObjectType.HIT_CIRCLE, 1)
+            ], labels, from_ending=True)
+        self.assertTrue(len(training_labels[0]) > len(training_labels[1]))
 
     def test_not_on_divisor(self):
         path = os.path.join(TEST_BEATMAPS_DIR, "not_on_divisor.osu")
@@ -73,10 +113,13 @@ class TestBeatmap(unittest.TestCase):
                             "late_starting_timing_point.osu")
         Beatmap.from_osu_file(path)
 
-    def assert_expected_labels(self, tuples, actual):
-        index = 0
+    def assert_expected_labels(self, tuples, actual, from_ending=False):
+        index = -1 if from_ending else 0
         for hit_object_type, num in tuples:
             for i in range(num):
                 self.assertEqual(
                     hit_object_type.value, actual[index], f"Incorrect label at divisor {index}")
-                index += 1
+                if from_ending:
+                    index -= 1
+                else:
+                    index += 1
